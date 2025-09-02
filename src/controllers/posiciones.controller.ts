@@ -39,11 +39,15 @@ export const getPosicionesConPosicionadoNegativo = async (req: Request, res: Res
 }
 
 export const setPosicion = async (req: Request, res: Response): Promise<Response> => {
-    const { capacidadPeso, capacidadVolumen, factorDesperdicio, categoriaPermitidaId } = req.body
+    const { capacidadPeso, capacidadVolumen, factorDesperdicio, categoriaPermitidaId, coordX, coordY } = req.body
     const api = require("lsi-util-node/API")
 
     if ([capacidadPeso, capacidadVolumen, factorDesperdicio].some((v: number) => v !== undefined && v < 0)) {
         return res.status(400).json(api.getFormatedResponse("", "Los valores no pueden ser negativos"))
+    }
+
+    if ([coordX, coordY].some((v: number) => v !== undefined && (isNaN(v) || v < 0 || v > 999))) {
+        return res.status(400).json(api.getFormatedResponse("", "Coordenadas fuera de rango"))
     }
 
     if (categoriaPermitidaId !== undefined) {
@@ -66,6 +70,8 @@ export const setPosicion = async (req: Request, res: Response): Promise<Response
     }
     if (factorDesperdicio !== undefined) { body.FactorDesperdicio = factorDesperdicio; delete body.factorDesperdicio }
     if (categoriaPermitidaId !== undefined) { body.CategoriaPermitidaId = categoriaPermitidaId; delete body.categoriaPermitidaId }
+    if (coordX !== undefined) { body.CoordX = coordX; delete body.coordX }
+    if (coordY !== undefined) { body.CoordY = coordY; delete body.coordY }
 
     const result = await posicion_modify(parseInt(req.params.id), body)
     if (result!=null) {
@@ -76,7 +82,7 @@ export const setPosicion = async (req: Request, res: Response): Promise<Response
 }
 
 export const newPosicion = async (req: Request, res: Response): Promise<Response> => {
-    const { nombre, capacidadPeso, capacidadVolumen, factorDesperdicio, categoriaPermitidaId } = req.body
+    const { nombre, capacidadPeso, capacidadVolumen, factorDesperdicio, categoriaPermitidaId, coordX, coordY } = req.body
     const api = require("lsi-util-node/API")
 
     if (!nombre) {
@@ -87,6 +93,10 @@ export const newPosicion = async (req: Request, res: Response): Promise<Response
         return res.status(400).json(api.getFormatedResponse("", "Los valores no pueden ser negativos"))
     }
 
+    if ([coordX, coordY].some((v: number) => v === undefined || isNaN(v) || v < 0 || v > 999)) {
+        return res.status(400).json(api.getFormatedResponse("", "Coordenadas fuera de rango"))
+    }
+
     if (categoriaPermitidaId !== undefined) {
         const categoria = await getConnection().query("SELECT Id FROM categorias WHERE Id = ?", [categoriaPermitidaId])
         if (categoria.length === 0) {
@@ -94,7 +104,7 @@ export const newPosicion = async (req: Request, res: Response): Promise<Response
         }
     }
 
-    const result = await posicion_add(nombre, capacidadPeso, capacidadVolumen, factorDesperdicio, categoriaPermitidaId)
+    const result = await posicion_add(nombre, capacidadPeso, capacidadVolumen, factorDesperdicio, categoriaPermitidaId, coordX, coordY)
     if (result.status) {
         return res.json(api.getFormatedResponse(result.detalle))
     } else {
