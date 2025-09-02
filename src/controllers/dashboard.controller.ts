@@ -25,10 +25,10 @@ export const getDashboard = async (req: Request, res: Response): Promise<Respons
 
     for (const pos of posiciones) {
         const ocup = await posicion_getOcupacion_DALC(pos.Id, { idEmpresa, zona });
-        const pct = pos.CapacidadVolumenCm3 ? ocup.VolumenOcupadoCm3 / pos.CapacidadVolumenCm3 : 0;
+        const pct = pos.CapacidadTotalVolumenCm3 ? ocup.VolumenOcupadoCm3 / pos.CapacidadTotalVolumenCm3 : 0;
         totalPct += pct;
         count++;
-        const pctPeso = pos.CapacidadPesoKg ? ocup.PesoOcupadoKg / pos.CapacidadPesoKg : 0;
+        const pctPeso = pos.CapacidadTotalPesoKg ? ocup.PesoOcupadoKg / pos.CapacidadTotalPesoKg : 0;
         if ((umbralOcup && pct > umbralOcup) || (umbralPeso && pctPeso > umbralPeso)) {
             criticas.push({ Id: pos.Id, Nombre: pos.Nombre, Ocupacion: pct });
         }
@@ -49,6 +49,7 @@ export const getDashboard = async (req: Request, res: Response): Promise<Respons
 
     const data = {
         ocupacionPromedio: count ? totalPct / count : 0,
+        ocupacionLibrePromedio: count ? 1 - totalPct / count : 0,
         rotacionPromedio,
         volumenMovidoPromedio,
         pesoMovidoPromedio,

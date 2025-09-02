@@ -25,8 +25,8 @@ export class MonitorService {
         const posiciones = await getRepository(Posicion).find();
         for (const pos of posiciones) {
             const ocupacion = await posicion_getOcupacion_DALC(pos.Id, { idEmpresa: cfg.IdEmpresa });
-            const pctVol = pos.CapacidadVolumenCm3 ? ocupacion.VolumenOcupadoCm3 / pos.CapacidadVolumenCm3 : 0;
-            const pctPeso = pos.CapacidadPesoKg ? ocupacion.PesoOcupadoKg / pos.CapacidadPesoKg : 0;
+            const pctVol = pos.CapacidadTotalVolumenCm3 ? ocupacion.VolumenOcupadoCm3 / pos.CapacidadTotalVolumenCm3 : 0;
+            const pctPeso = pos.CapacidadTotalPesoKg ? ocupacion.PesoOcupadoKg / pos.CapacidadTotalPesoKg : 0;
 
             if (
                 (cfg.UmbralOcupacion && pctVol > cfg.UmbralOcupacion) ||

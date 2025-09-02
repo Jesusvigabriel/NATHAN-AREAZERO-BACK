@@ -17,11 +17,17 @@ export class Posicion {
     @Column({name: "usuario_inventario"})
     UsuarioInventario: string
 
-    @Column({name: "capacidad_peso_kg", type: "float", nullable: true})
-    CapacidadPesoKg: number
+    @Column({name: "capacidad_total_peso_kg", type: "float", nullable: true})
+    CapacidadTotalPesoKg: number
 
-    @Column({name: "capacidad_volumen_cm3", type: "float", nullable: true})
-    CapacidadVolumenCm3: number
+    @Column({name: "capacidad_total_volumen_cm3", type: "float", nullable: true})
+    CapacidadTotalVolumenCm3: number
+
+    @Column({name: "peso_disponible_kg", type: "float", nullable: true})
+    PesoDisponibleKg: number
+
+    @Column({name: "volumen_disponible_cm3", type: "float", nullable: true})
+    VolumenDisponibleCm3: number
 
     @Column({name: "factor_desperdicio", type: "float", nullable: true})
     FactorDesperdicio: number

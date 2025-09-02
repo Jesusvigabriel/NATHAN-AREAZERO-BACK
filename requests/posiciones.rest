@@ -29,8 +29,10 @@ Content-Type: application/json
 {
   "UsuarioInventario": "Leo Lob",
   "FechaInventario": "2021-07-01",
-  "CapacidadPesoKg": 1000,
-  "CapacidadVolumenCm3": 500000,
+  "CapacidadTotalPesoKg": 1000,
+  "CapacidadTotalVolumenCm3": 500000,
+  "PesoDisponibleKg": 1000,
+  "VolumenDisponibleCm3": 500000,
   "FactorDesperdicio": 0.1,
   "CategoriaPermitidaId": 1
 }
