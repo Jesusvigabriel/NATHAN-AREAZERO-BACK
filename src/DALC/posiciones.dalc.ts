@@ -4,6 +4,7 @@ import {Posicion} from "../entities/Posicion"
 import {PosicionProducto} from "../entities/PosicionProducto"
 import {HistoricoPosiciones} from "../entities/HistoricoPosiciones"
 import { producto_getPosiciones_byIdProducto_DALC, producto_moverDePosicion_DALC } from "./productos.dalc"
+import { PosicionMetrica } from "../entities/PosicionMetrica"
 
 export const posicion_add = async (
     nombre: string,
@@ -435,3 +436,29 @@ export const posiciones_getAllByEmpresaConProductos_DALC = async (idEmpresa: num
         Detalle: productosPorPosId[pos.Id] || []
     }));
 };
+
+export const posiciones_getHeatmap_DALC = async (
+    idEmpresa: number,
+    periodo: string
+) => {
+    const [year, month] = periodo.split('-').map(Number)
+    const start = new Date(year, month - 1, 1)
+    const end = new Date(year, month, 1)
+
+    const rows = await getRepository(PosicionMetrica)
+        .createQueryBuilder('pm')
+        .select('pos.descripcion', 'nombre')
+        .addSelect('SUM(pm.unidades)', 'valor')
+        .innerJoin(Posicion, 'pos', 'pos.id = pm.posicionId')
+        .where('pm.empresaId = :idEmpresa', { idEmpresa })
+        .andWhere('pm.fecha >= :start AND pm.fecha < :end', { start, end })
+        .groupBy('pm.posicionId')
+        .getRawMany()
+
+    return rows.map(r => {
+        const partes = (r.nombre || '').split('-')
+        const x = parseInt(partes[1], 10)
+        const y = parseInt(partes[2], 10)
+        return { x, y, valor: Number(r.valor) }
+    })
+}
