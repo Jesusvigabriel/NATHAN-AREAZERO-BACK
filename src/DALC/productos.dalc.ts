@@ -74,6 +74,10 @@ export const producto_posicionar_DALC = async (producto: Producto, posicion: Pos
     const factor = obtenerFactor(posicionActual)
     const ocupacion1 = calcularOcupacion(producto, unidadesAPosicionar, factor)
 
+    if (posicionActual?.CategoriaPermitidaId && producto.CategoriaId !== posicionActual.CategoriaPermitidaId) {
+        return {status: "ERROR", error: "Categoría no permitida en la posición"}
+    }
+
     if (posicionActual && ((posicionActual.CapacidadVolumenCm3 ?? 0) < ocupacion1.VolumenOcupadoCm3 || (posicionActual.CapacidadPesoKg ?? 0) < ocupacion1.PesoOcupadoKg)) {
         return {status: "ERROR", error: "Capacidad insuficiente en la posición"}
     }
@@ -125,6 +129,9 @@ export const reposicionar_producto_excel_DALC = async (producto: Producto, posic
             const posicionActual = await posicion_getById_DALC(posicion.Id)
             const factor = obtenerFactor(posicionActual)
             const ocupacion2 = calcularOcupacion(producto, unidadesAPosicionar, factor)
+            if (posicionActual?.CategoriaPermitidaId && producto.CategoriaId !== posicionActual.CategoriaPermitidaId) {
+                return {status: "ERROR", error: "Categoría no permitida en la posición"}
+            }
             if (posicionActual && ((posicionActual.CapacidadVolumenCm3 ?? 0) < ocupacion2.VolumenOcupadoCm3 || (posicionActual.CapacidadPesoKg ?? 0) < ocupacion2.PesoOcupadoKg)) {
                 return {status: "ERROR", error: "Capacidad insuficiente en la posición"}
             }
@@ -158,6 +165,9 @@ export const reposicionar_producto_excel_DALC = async (producto: Producto, posic
         const posicionActual = await posicion_getById_DALC(posicion.Id)
         const factor = obtenerFactor(posicionActual)
         const ocupacion3 = calcularOcupacion(producto, unidadesAPosicionar, factor)
+        if (posicionActual?.CategoriaPermitidaId && producto.CategoriaId !== posicionActual.CategoriaPermitidaId) {
+            return {status: "ERROR", error: "Categoría no permitida en la posición"}
+        }
         if (posicionActual && ((posicionActual.CapacidadVolumenCm3 ?? 0) < ocupacion3.VolumenOcupadoCm3 || (posicionActual.CapacidadPesoKg ?? 0) < ocupacion3.PesoOcupadoKg)) {
             return {status: "ERROR", error: "Capacidad insuficiente en la posición"}
         }
@@ -227,6 +237,9 @@ export const reposicionar_partida_excel_DALC = async (partida: Partida, posicion
             const posicionActual = await posicion_getById_DALC(posicion.Id)
             const factor = obtenerFactor(posicionActual)
             const ocupacionPartida = calcularOcupacion(productoInfo, unidadesAPosicionar, factor)
+            if (posicionActual?.CategoriaPermitidaId && productoInfo?.CategoriaId !== posicionActual.CategoriaPermitidaId) {
+                return {status: "ERROR", error: "Categoría no permitida en la posición"}
+            }
             if (posicionActual && ((posicionActual.CapacidadVolumenCm3 ?? 0) < ocupacionPartida.VolumenOcupadoCm3 || (posicionActual.CapacidadPesoKg ?? 0) < ocupacionPartida.PesoOcupadoKg)) {
                 return {status: "ERROR", error: "Capacidad insuficiente en la posición"}
             }
@@ -259,6 +272,9 @@ export const reposicionar_partida_excel_DALC = async (partida: Partida, posicion
         const posicionActual = await posicion_getById_DALC(posicion.Id)
         const factor = obtenerFactor(posicionActual)
         const ocupacionPartida2 = calcularOcupacion(productoInfo, unidadesAPosicionar, factor)
+        if (posicionActual?.CategoriaPermitidaId && productoInfo?.CategoriaId !== posicionActual.CategoriaPermitidaId) {
+            return {status: "ERROR", error: "Categoría no permitida en la posición"}
+        }
         if (posicionActual && ((posicionActual.CapacidadVolumenCm3 ?? 0) < ocupacionPartida2.VolumenOcupadoCm3 || (posicionActual.CapacidadPesoKg ?? 0) < ocupacionPartida2.PesoOcupadoKg)) {
             return {status: "ERROR", error: "Capacidad insuficiente en la posición"}
         }
@@ -409,10 +425,11 @@ export const producto_desposicionar_Lote_DALC = async (posicion: number, unidade
 export const producto_getPosiciones_byIdProducto_DALC = async (idProducto: number) => {
     const resDet=await getRepository(PosicionProducto)
         .createQueryBuilder()
-        .select("posicionId, sum(unidades * if(existe, -1, 1)) as total")
+        .select("posicionId, sum(unidades * if(existe, -1, 1)) as total, min(asigned) as fecha")
         .where("productId = :idProducto", {idProducto})
         .groupBy("posicionId")
         .having("total<>0")
+        .orderBy("fecha","ASC")
         .getRawMany()
 
     const devolver=[]
@@ -433,11 +450,12 @@ export const producto_getPosiciones_byIdProducto_DALC = async (idProducto: numbe
 export const producto_getPosiciones_byIdProducto_Lote_DALC = async (idProducto: number, idPosicion: number, lote: string) => {
     const resDet=await getRepository(PosicionProducto)
         .createQueryBuilder()
-        .select("posicionId, sum(unidades * if(existe, -1, 1)) as total")
+        .select("posicionId, sum(unidades * if(existe, -1, 1)) as total, min(asigned) as fecha")
         .where("productId = :idProducto", {idProducto})
         .andWhere("posicionId = :idPosicion", {idPosicion})
         .andWhere("lote = :lote", {lote})
         .having("total<>0")
+        .orderBy("fecha","ASC")
         .getRawOne()
 
         return resDet
@@ -764,6 +782,10 @@ export const producto_moverDePosicion_DALC =  async (idProducto: number, idEmpre
     const factorDestino = obtenerFactor(posDestino)
     const ocupacionMoverSalida = calcularOcupacion(productoInfo, cantidad, factorOrigen)
     const ocupacionMoverEntrada = calcularOcupacion(productoInfo, cantidad, factorDestino)
+
+    if (posDestino?.CategoriaPermitidaId && productoInfo?.CategoriaId !== posDestino.CategoriaPermitidaId) {
+        return {status: "ERROR", error: "Categoría no permitida en la posición destino"}
+    }
 
     if (posDestino && ((posDestino.CapacidadVolumenCm3 ?? 0) < ocupacionMoverEntrada.VolumenOcupadoCm3 || (posDestino.CapacidadPesoKg ?? 0) < ocupacionMoverEntrada.PesoOcupadoKg)) {
         return {status: "ERROR", error: "Capacidad insuficiente en la posición destino"}
