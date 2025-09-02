@@ -23,6 +23,7 @@ import guiasRoutes from './routes/guias.routes'
 import guiasRendicionesRoutes from './routes/guiasRendiciones.routes'
 import posicionesRoutes from './routes/posiciones.routes'
 import productosRoutes from './routes/productos.routes'
+import categoriasRoutes from './routes/categorias.routes'
 import posicionesProductosRoutes from './routes/posicionesProductos.routes'
 import ordenesRoutes from './routes/ordenes.routes'
 import chofereRoutes from './routes/choferes.routes'
@@ -76,6 +77,7 @@ app.use(guiasRoutes)
 app.use(guiasRendicionesRoutes)
 app.use(posicionesRoutes)
 app.use(productosRoutes)
+app.use(categoriasRoutes)
 app.use(posicionesProductosRoutes)
 app.use(ordenesRoutes)
 app.use(chofereRoutes)
