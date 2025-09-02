@@ -358,8 +358,9 @@ export const getPosicionesConDetalleByEmpresa = async (req: Request, res: Respon
                 )
             );
         }
+        const zona = req.query.zona ? String(req.query.zona) : undefined;
         // llamamos al DALC que agrupa por producto y posición
-        const detalle = await posiciones_getAllByEmpresaConDetalle_DALC(idEmpresa);
+        const detalle = await posiciones_getAllByEmpresaConDetalle_DALC(idEmpresa, zona);
         return res.json(
             require('lsi-util-node/API').getFormatedResponse(detalle)
         );
@@ -391,7 +392,8 @@ export const getAllByEmpresaConProductos = async (req: Request, res: Response): 
                 require('lsi-util-node/API').getFormatedResponse('', 'Parámetro idEmpresa inválido')
             );
         }
-        const data = await posiciones_getAllByEmpresaConProductos_DALC(idEmpresa);
+        const zona = req.query.zona ? String(req.query.zona) : undefined;
+        const data = await posiciones_getAllByEmpresaConProductos_DALC(idEmpresa, zona);
         return res.json(require('lsi-util-node/API').getFormatedResponse(data));
     } catch (err: any) {
         return res.status(500).json(
@@ -404,13 +406,14 @@ export const getHeatmap = async (req: Request, res: Response): Promise<Response>
     const api = require('lsi-util-node/API')
     const idEmpresa = Number(req.query.empresa)
     const periodo = req.query.periodo as string
+    const zona = req.query.zona ? String(req.query.zona) : undefined
 
     if (isNaN(idEmpresa) || !periodo) {
         return res.status(400).json(api.getFormatedResponse('', 'Parámetros inválidos'))
     }
 
     try {
-        const data = await posiciones_getHeatmap_DALC(idEmpresa, periodo)
+        const data = await posiciones_getHeatmap_DALC(idEmpresa, periodo, zona)
         return res.json(api.getFormatedResponse(data))
     } catch (err: any) {
         return res.status(500).json(api.getFormatedResponse('', err.message || 'Error interno'))

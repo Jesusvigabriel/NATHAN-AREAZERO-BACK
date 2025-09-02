@@ -235,8 +235,9 @@ export const posicion_getOcupacion_DALC = async (
     }
 
     if (filtros.zona) {
-        qb.innerJoin("posiciones", "pos", "pos.id = pp.posicionId")
-        qb.andWhere("pos.descripcion LIKE :zona", { zona: `${filtros.zona}%` })
+        qb.innerJoin("zona_posicion", "zp", "zp.posicionId = pp.posicionId")
+        qb.innerJoin("zonas", "z", "z.id = zp.zonaId")
+        qb.andWhere("z.descripcion = :zona", { zona: filtros.zona })
     }
 
     const result = await qb.getRawOne()
@@ -344,9 +345,29 @@ export interface PosicionConDetalle {
 
 
 export const posiciones_getAllByEmpresaConDetalle_DALC = async (
-  idEmpresa: number
+  idEmpresa: number,
+  zona?: string
 ): Promise<PosicionConDetalle[]> => {
-  // Ejecutamos la consulta cruda
+  const qb = createQueryBuilder("pos_prod", "pp")
+    .select([
+      "pp.productId     AS IdProducto",
+      "prod.descripcion AS NombreProducto",
+      "prod.barrCode       AS barrCode",
+      "prod.codeEmpresa   AS codeEmpresa",
+      "pp.posicionId    AS IdPosicion",
+      "pos.descripcion  AS NombrePosicion",
+      "SUM(pp.unidades * IF(pp.existe, -1, 1)) AS Unidades",
+    ])
+    .innerJoin("productos", "prod", "prod.id = pp.productId")
+    .innerJoin("posiciones", "pos", "pos.id  = pp.posicionId")
+    .where("pp.empresaId = :idEmpresa", { idEmpresa })
+
+  if (zona) {
+    qb.innerJoin("zona_posicion", "zp", "zp.posicionId = pos.id")
+    qb.innerJoin("zonas", "z", "z.id = zp.zonaId")
+    qb.andWhere("z.descripcion = :zona", { zona })
+  }
+
   const raws: Array<{
     IdProducto: string
     NombreProducto: string
@@ -355,19 +376,7 @@ export const posiciones_getAllByEmpresaConDetalle_DALC = async (
     IdPosicion: string
     NombrePosicion: string
     Unidades: string
-  }> = await createQueryBuilder("pos_prod", "pp")
-    .select([
-      "pp.productId     AS IdProducto",
-      "prod.descripcion AS NombreProducto",
-      "prod.barrCode       AS barrCode",         
-      "prod.codeEmpresa   AS codeEmpresa",  
-      "pp.posicionId    AS IdPosicion",
-      "pos.descripcion  AS NombrePosicion",
-      "SUM(pp.unidades * IF(pp.existe, -1, 1)) AS Unidades",
-    ])
-    .innerJoin("productos", "prod", "prod.id = pp.productId")
-    .innerJoin("posiciones", "pos", "pos.id  = pp.posicionId")
-    .where("pp.empresaId = :idEmpresa", { idEmpresa })
+  }> = await qb
     .groupBy("pp.productId, pp.posicionId")
     .having("Unidades <> 0")
     .execute()
@@ -387,18 +396,29 @@ export const posiciones_getAllByEmpresaConDetalle_DALC = async (
 
 
 
-export const posiciones_getAllByEmpresaConProductos_DALC = async (idEmpresa: number) => {
-    // 1. Traer TODAS las posiciones posibles (sin filtro de empresa)
-    const posiciones = await getRepository(Posicion).find();
+export const posiciones_getAllByEmpresaConProductos_DALC = async (idEmpresa: number, zona?: string) => {
+    let posicionesQuery = getRepository(Posicion).createQueryBuilder('pos');
+    if (zona) {
+        posicionesQuery = posicionesQuery
+            .innerJoin('zona_posicion', 'zp', 'zp.posicionId = pos.id')
+            .innerJoin('zonas', 'z', 'z.id = zp.zonaId')
+            .where('z.descripcion = :zona', { zona });
+    }
+    const posiciones = await posicionesQuery.getMany();
 
-    // 2. Traer todos los productos posicionados para esa empresa, agrupados
-    const productosPorPosicion = await createQueryBuilder("pos_prod", "pp")
+    const qb = createQueryBuilder("pos_prod", "pp")
         .select([
             "pp.posicionId AS IdPosicion",
             "pp.productId AS IdProducto",
             "SUM(pp.unidades * IF(pp.existe, -1, 1)) AS Unidades"
         ])
-        .where("pp.empresaId = :idEmpresa", { idEmpresa })
+        .where("pp.empresaId = :idEmpresa", { idEmpresa });
+
+    if (zona && posiciones.length > 0) {
+        qb.andWhere('pp.posicionId IN (:...posIds)', { posIds: posiciones.map(p => p.Id) });
+    }
+
+    const productosPorPosicion = await qb
         .groupBy("pp.posicionId, pp.productId")
         .having("Unidades <> 0")
         .getRawMany();
@@ -436,28 +456,35 @@ export const posiciones_getAllByEmpresaConProductos_DALC = async (idEmpresa: num
     // 6. Formatear el resultado: para cada posición, su detalle (vacío si no hay productos)
     return posiciones.map(pos => ({
         Id: pos.Id,
-        Nombre: pos.Nombre, // Ajusta si el campo se llama distinto
+        Nombre: pos.Nombre,
         Detalle: productosPorPosId[pos.Id] || []
     }));
 };
 
 export const posiciones_getHeatmap_DALC = async (
     idEmpresa: number,
-    periodo: string
+    periodo: string,
+    zona?: string
 ) => {
     const [year, month] = periodo.split('-').map(Number)
     const start = new Date(year, month - 1, 1)
     const end = new Date(year, month, 1)
 
-    const rows = await getRepository(PosicionMetrica)
+    const qb = getRepository(PosicionMetrica)
         .createQueryBuilder('pm')
         .select('pos.descripcion', 'nombre')
         .addSelect('SUM(pm.unidades)', 'valor')
         .innerJoin(Posicion, 'pos', 'pos.id = pm.posicionId')
         .where('pm.empresaId = :idEmpresa', { idEmpresa })
         .andWhere('pm.fecha >= :start AND pm.fecha < :end', { start, end })
-        .groupBy('pm.posicionId')
-        .getRawMany()
+
+    if (zona) {
+        qb.innerJoin('zona_posicion', 'zp', 'zp.posicionId = pos.id')
+        qb.innerJoin('zonas', 'z', 'z.id = zp.zonaId')
+        qb.andWhere('z.descripcion = :zona', { zona })
+    }
+
+    const rows = await qb.groupBy('pm.posicionId').getRawMany()
 
     return rows.map(r => {
         const partes = (r.nombre || '').split('-')
