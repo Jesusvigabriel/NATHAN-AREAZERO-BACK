@@ -87,7 +87,8 @@ export const set_posicionar = async (req: Request, res: Response): Promise <Resp
         }
     }
 
-    const result=await producto_posicionar_DALC(producto!, posicion!, parseInt(req.params.cantidadAPosicionar),parseInt(req.params.idEmpresa))
+    const idPallet = req.body?.idPallet ? parseInt(req.body.idPallet) : undefined
+    const result=await producto_posicionar_DALC(producto!, posicion!, parseInt(req.params.cantidadAPosicionar),parseInt(req.params.idEmpresa), idPallet)
 
     if (result.status==="OK") {
         return res.json(require("lsi-util-node/API").getFormatedResponse("OK"))
@@ -133,7 +134,8 @@ export const set_posicionar_excel = async (req: Request, res: Response): Promise
     if (producto===null) {
         return res.status(404).json(require("lsi-util-node/API").getFormatedResponse("", "Producto inexistente"))
     }
-    const result=await reposicionar_producto_excel_DALC(producto!, posicion!, parseInt(req.params.cantidadAPosicionar),req.params.usuario)
+    const idPallet = req.body?.idPallet ? parseInt(req.body.idPallet) : undefined
+    const result=await reposicionar_producto_excel_DALC(producto!, posicion!, parseInt(req.params.cantidadAPosicionar),req.params.usuario, idPallet)
 
     if (result.status==="OK") {
         return res.json(require("lsi-util-node/API").getFormatedResponse("OK"))

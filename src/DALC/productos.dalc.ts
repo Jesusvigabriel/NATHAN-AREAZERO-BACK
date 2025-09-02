@@ -24,6 +24,7 @@ import { response } from "express"
 import { stringify } from "querystring"
 import { productosHistorico_insert_DALC } from "./productosHistorico.dalc"
 import { PosicionMetrica } from "../entities/PosicionMetrica"
+import { Pallet } from "../entities/Pallet"
 
 const obtenerFactor = (posicion?: Posicion) => 1 + (posicion?.FactorDesperdicio ?? 0)
 
@@ -63,7 +64,13 @@ const registrarPosicionMetrica = async (
 }
 
 
-export const producto_posicionar_DALC = async (producto: Producto, posicion: Posicion, unidadesAPosicionar: number, idEmpresa: number) => {
+export const producto_posicionar_DALC = async (
+    producto: Producto,
+    posicion: Posicion,
+    unidadesAPosicionar: number,
+    idEmpresa: number,
+    idPallet?: number
+) => {
 
     if (producto.StockSinPosicionar<unidadesAPosicionar) {
         return {status: "ERROR", error: "El producto tiene " + producto.StockSinPosicionar + " stock sin posicionar, intentas posicionar: " + unidadesAPosicionar}
@@ -73,6 +80,22 @@ export const producto_posicionar_DALC = async (producto: Producto, posicion: Pos
     const posicionActual = await posicion_getById_DALC(posicion.Id)
     const factor = obtenerFactor(posicionActual)
     const ocupacion1 = calcularOcupacion(producto, unidadesAPosicionar, factor)
+
+    let pallet: Pallet | undefined
+    if (idPallet) {
+        pallet = await getRepository(Pallet).findOne(idPallet, { relations: ["Tipo"] })
+        if (!pallet) {
+            return { status: "ERROR", error: "Pallet inexistente" }
+        }
+        if (pallet.PosicionId && pallet.PosicionId !== posicion.Id) {
+            return { status: "ERROR", error: "Pallet no pertenece a la posición" }
+        }
+        const capacidadVolumen = (pallet.Tipo?.CapacidadVolumenCm3 ?? 0) - (pallet.VolumenOcupadoCm3 ?? 0)
+        const capacidadPeso = (pallet.Tipo?.CapacidadPesoKg ?? 0) - (pallet.PesoOcupadoKg ?? 0)
+        if (capacidadVolumen < ocupacion1.VolumenOcupadoCm3 || capacidadPeso < ocupacion1.PesoOcupadoKg) {
+            return { status: "ERROR", error: "Capacidad insuficiente en el pallet" }
+        }
+    }
 
     if (posicionActual?.CategoriaPermitidaId && producto.CategoriaId !== posicionActual.CategoriaPermitidaId) {
         return {status: "ERROR", error: "Categoría no permitida en la posición"}
@@ -84,6 +107,20 @@ export const producto_posicionar_DALC = async (producto: Producto, posicion: Pos
 
     if (posicionActual) {
         await actualizarCapacidad(posicionActual, -ocupacion1.VolumenOcupadoCm3, -ocupacion1.PesoOcupadoKg)
+    }
+
+    if (pallet) {
+        const nuevoVol = (pallet.VolumenOcupadoCm3 ?? 0) + ocupacion1.VolumenOcupadoCm3
+        const nuevoPeso = (pallet.PesoOcupadoKg ?? 0) + ocupacion1.PesoOcupadoKg
+        const espacioVol = (pallet.Tipo?.CapacidadVolumenCm3 ?? 0) - nuevoVol
+        const espacioPeso = (pallet.Tipo?.CapacidadPesoKg ?? 0) - nuevoPeso
+        await getRepository(Pallet).update(pallet.Id, {
+            VolumenOcupadoCm3: nuevoVol,
+            PesoOcupadoKg: nuevoPeso,
+            EspacioLibreVolumenCm3: espacioVol,
+            EspacioLibrePesoKg: espacioPeso,
+            PosicionId: posicion.Id
+        })
     }
 
     const entradaAPosicion=new PosicionProducto()
@@ -107,7 +144,13 @@ export const producto_posicionar_DALC = async (producto: Producto, posicion: Pos
 }
 
 //Reposicionamiento mediante excel
-export const reposicionar_producto_excel_DALC = async (producto: Producto, posicion: Posicion, unidadesAPosicionar: number, usuario: string) => {
+export const reposicionar_producto_excel_DALC = async (
+    producto: Producto,
+    posicion: Posicion,
+    unidadesAPosicionar: number,
+    usuario: string,
+    idPallet?: number
+) => {
     let result
     //Me fijo que posicion tiene el articulo previamente
     const pos = await posicion_getByIdProd_DALC(producto.Id, producto.IdEmpresa)
@@ -129,6 +172,21 @@ export const reposicionar_producto_excel_DALC = async (producto: Producto, posic
             const posicionActual = await posicion_getById_DALC(posicion.Id)
             const factor = obtenerFactor(posicionActual)
             const ocupacion2 = calcularOcupacion(producto, unidadesAPosicionar, factor)
+            let pallet: Pallet | undefined
+            if (idPallet) {
+                pallet = await getRepository(Pallet).findOne(idPallet, { relations: ["Tipo"] })
+                if (!pallet) {
+                    return { status: "ERROR", error: "Pallet inexistente" }
+                }
+                if (pallet.PosicionId && pallet.PosicionId !== posicion.Id) {
+                    return { status: "ERROR", error: "Pallet no pertenece a la posición" }
+                }
+                const capacidadVolumen = (pallet.Tipo?.CapacidadVolumenCm3 ?? 0) - (pallet.VolumenOcupadoCm3 ?? 0)
+                const capacidadPeso = (pallet.Tipo?.CapacidadPesoKg ?? 0) - (pallet.PesoOcupadoKg ?? 0)
+                if (capacidadVolumen < ocupacion2.VolumenOcupadoCm3 || capacidadPeso < ocupacion2.PesoOcupadoKg) {
+                    return { status: "ERROR", error: "Capacidad insuficiente en el pallet" }
+                }
+            }
             if (posicionActual?.CategoriaPermitidaId && producto.CategoriaId !== posicionActual.CategoriaPermitidaId) {
                 return {status: "ERROR", error: "Categoría no permitida en la posición"}
             }
@@ -137,6 +195,19 @@ export const reposicionar_producto_excel_DALC = async (producto: Producto, posic
             }
             if (posicionActual) {
                 await actualizarCapacidad(posicionActual, -ocupacion2.VolumenOcupadoCm3, -ocupacion2.PesoOcupadoKg)
+            }
+            if (pallet) {
+                const nuevoVol = (pallet.VolumenOcupadoCm3 ?? 0) + ocupacion2.VolumenOcupadoCm3
+                const nuevoPeso = (pallet.PesoOcupadoKg ?? 0) + ocupacion2.PesoOcupadoKg
+                const espacioVol = (pallet.Tipo?.CapacidadVolumenCm3 ?? 0) - nuevoVol
+                const espacioPeso = (pallet.Tipo?.CapacidadPesoKg ?? 0) - nuevoPeso
+                await getRepository(Pallet).update(pallet.Id, {
+                    VolumenOcupadoCm3: nuevoVol,
+                    PesoOcupadoKg: nuevoPeso,
+                    EspacioLibreVolumenCm3: espacioVol,
+                    EspacioLibrePesoKg: espacioPeso,
+                    PosicionId: posicion.Id
+                })
             }
 
             const entradaAPosicion=new PosicionProducto()
