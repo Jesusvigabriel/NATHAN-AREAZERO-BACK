@@ -15,8 +15,10 @@ export const posicion_add = async (
   ) => {
     const resultToSave = getRepository(Posicion).create({
         Nombre: nombre,
-        CapacidadPesoKg: capacidadPeso,
-        CapacidadVolumenCm3: capacidadVolumen,
+        CapacidadTotalPesoKg: capacidadPeso,
+        CapacidadTotalVolumenCm3: capacidadVolumen,
+        PesoDisponibleKg: capacidadPeso,
+        VolumenDisponibleCm3: capacidadVolumen,
         FactorDesperdicio: factorDesperdicio,
         CategoriaPermitidaId: categoriaPermitidaId
     })

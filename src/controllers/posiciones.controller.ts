@@ -54,8 +54,16 @@ export const setPosicion = async (req: Request, res: Response): Promise<Response
     }
 
     const body: any = { ...req.body }
-    if (capacidadPeso !== undefined) { body.CapacidadPesoKg = capacidadPeso; delete body.capacidadPeso }
-    if (capacidadVolumen !== undefined) { body.CapacidadVolumenCm3 = capacidadVolumen; delete body.capacidadVolumen }
+    if (capacidadPeso !== undefined) {
+        body.CapacidadTotalPesoKg = capacidadPeso; 
+        body.PesoDisponibleKg = capacidadPeso; 
+        delete body.capacidadPeso 
+    }
+    if (capacidadVolumen !== undefined) { 
+        body.CapacidadTotalVolumenCm3 = capacidadVolumen; 
+        body.VolumenDisponibleCm3 = capacidadVolumen; 
+        delete body.capacidadVolumen 
+    }
     if (factorDesperdicio !== undefined) { body.FactorDesperdicio = factorDesperdicio; delete body.factorDesperdicio }
     if (categoriaPermitidaId !== undefined) { body.CategoriaPermitidaId = categoriaPermitidaId; delete body.categoriaPermitidaId }
 
@@ -143,15 +151,39 @@ export const eliminarPosicion = async (req: Request, res: Response): Promise <Re
 
 export const getPosiciones = async (req: Request, res: Response): Promise <Response> => {
     const todasLasPosiciones = await posiciones_getAll_DALC()
+    const resultado = todasLasPosiciones.map(p => {
+        const totalPeso = p.CapacidadTotalPesoKg ?? 0
+        const totalVol = p.CapacidadTotalVolumenCm3 ?? 0
+        const dispPeso = p.PesoDisponibleKg ?? 0
+        const dispVol = p.VolumenDisponibleCm3 ?? 0
+        return {
+            ...p,
+            PorcentajePesoUsado: totalPeso ? (totalPeso - dispPeso) / totalPeso : 0,
+            PorcentajePesoLibre: totalPeso ? dispPeso / totalPeso : 0,
+            PorcentajeVolumenUsado: totalVol ? (totalVol - dispVol) / totalVol : 0,
+            PorcentajeVolumenLibre: totalVol ? dispVol / totalVol : 0,
+        }
+    })
 
-    return res.json(require("lsi-util-node/API").getFormatedResponse(todasLasPosiciones))
+    return res.json(require("lsi-util-node/API").getFormatedResponse(resultado))
 }
 
 export const getPosicionesPorNombre = async (req: Request, res: Response): Promise <Response> => {
-    const unaPosicion = await posicion_getByNombre_DALC(req.params.nombre) 
+    const unaPosicion = await posicion_getByNombre_DALC(req.params.nombre)
 
     if (unaPosicion!=null) {
-        return res.json(require("lsi-util-node/API").getFormatedResponse(unaPosicion))
+        const totalPeso = unaPosicion.CapacidadTotalPesoKg ?? 0
+        const totalVol = unaPosicion.CapacidadTotalVolumenCm3 ?? 0
+        const dispPeso = unaPosicion.PesoDisponibleKg ?? 0
+        const dispVol = unaPosicion.VolumenDisponibleCm3 ?? 0
+        const resultado = {
+            ...unaPosicion,
+            PorcentajePesoUsado: totalPeso ? (totalPeso - dispPeso) / totalPeso : 0,
+            PorcentajePesoLibre: totalPeso ? dispPeso / totalPeso : 0,
+            PorcentajeVolumenUsado: totalVol ? (totalVol - dispVol) / totalVol : 0,
+            PorcentajeVolumenLibre: totalVol ? dispVol / totalVol : 0,
+        }
+        return res.json(require("lsi-util-node/API").getFormatedResponse(resultado))
     } else {
         return res.status(404).json(require("lsi-util-node/API").getFormatedResponse("", "Posición inexistente"))
     }
@@ -161,7 +193,18 @@ export const getByID = async (req: Request, res: Response): Promise <Response> =
     const unaPosicion = await posicion_getById_DALC(parseInt(req.params.id))
 
     if (unaPosicion!=null) {
-        return res.json(require("lsi-util-node/API").getFormatedResponse(unaPosicion))
+        const totalPeso = unaPosicion.CapacidadTotalPesoKg ?? 0
+        const totalVol = unaPosicion.CapacidadTotalVolumenCm3 ?? 0
+        const dispPeso = unaPosicion.PesoDisponibleKg ?? 0
+        const dispVol = unaPosicion.VolumenDisponibleCm3 ?? 0
+        const resultado = {
+            ...unaPosicion,
+            PorcentajePesoUsado: totalPeso ? (totalPeso - dispPeso) / totalPeso : 0,
+            PorcentajePesoLibre: totalPeso ? dispPeso / totalPeso : 0,
+            PorcentajeVolumenUsado: totalVol ? (totalVol - dispVol) / totalVol : 0,
+            PorcentajeVolumenLibre: totalVol ? dispVol / totalVol : 0,
+        }
+        return res.json(require("lsi-util-node/API").getFormatedResponse(resultado))
     } else {
         return res.status(404).json(require("lsi-util-node/API").getFormatedResponse("", "Posición inexistente"))
     }
@@ -189,13 +232,29 @@ export const getOcupacionById = async (req: Request, res: Response): Promise<Res
             : undefined
         const zona = req.query.zona ? String(req.query.zona) : undefined
 
-        const ocupacion = await posicion_getOcupacion_DALC(idPosicion, {
-            idEmpresa,
-            zona,
-        })
+        const [ocupacion, posicion] = await Promise.all([
+            posicion_getOcupacion_DALC(idPosicion, {
+                idEmpresa,
+                zona,
+            }),
+            posicion_getById_DALC(idPosicion),
+        ])
+
+        const totalPeso = posicion?.CapacidadTotalPesoKg ?? 0
+        const totalVol = posicion?.CapacidadTotalVolumenCm3 ?? 0
+        const dispPeso = posicion?.PesoDisponibleKg ?? 0
+        const dispVol = posicion?.VolumenDisponibleCm3 ?? 0
+
+        const resultado = {
+            ...ocupacion,
+            PorcentajePesoUsado: totalPeso ? ocupacion.PesoOcupadoKg / totalPeso : 0,
+            PorcentajePesoLibre: totalPeso ? dispPeso / totalPeso : 0,
+            PorcentajeVolumenUsado: totalVol ? ocupacion.VolumenOcupadoCm3 / totalVol : 0,
+            PorcentajeVolumenLibre: totalVol ? dispVol / totalVol : 0,
+        }
 
         return res.json(
-            require("lsi-util-node/API").getFormatedResponse(ocupacion)
+            require("lsi-util-node/API").getFormatedResponse(resultado)
         )
     } catch (err: any) {
         return res.status(500).json(
