@@ -1,4 +1,4 @@
-import {getRepository, createQueryBuilder, Any, getConnection} from "typeorm"
+import {getRepository, createQueryBuilder, Any, getConnection, EntityManager} from "typeorm"
 import {Producto} from "../entities/Producto"
 import {PosicionProducto} from '../entities/PosicionProducto'
 import {HistoricoPosiciones} from '../entities/HistoricoPosiciones'
@@ -35,13 +35,20 @@ const calcularOcupacion = (producto: Producto | undefined, unidades: number, fac
     }
 }
 
-const actualizarCapacidad = async (posicion: Posicion, deltaVolumen: number, deltaPeso: number) => {
+const actualizarCapacidad = async (posicion: Posicion, deltaVolumen: number, deltaPeso: number, manager?: EntityManager) => {
     const nuevaCapacidadVolumen = (posicion.VolumenDisponibleCm3 ?? 0) + deltaVolumen
     const nuevaCapacidadPeso = (posicion.PesoDisponibleKg ?? 0) + deltaPeso
-    await getRepository(Posicion).update(posicion.Id, {
-        VolumenDisponibleCm3: nuevaCapacidadVolumen,
-        PesoDisponibleKg: nuevaCapacidadPeso,
-    })
+    if (manager) {
+        await manager.update(Posicion, posicion.Id, {
+            VolumenDisponibleCm3: nuevaCapacidadVolumen,
+            PesoDisponibleKg: nuevaCapacidadPeso,
+        })
+    } else {
+        await getRepository(Posicion).update(posicion.Id, {
+            VolumenDisponibleCm3: nuevaCapacidadVolumen,
+            PesoDisponibleKg: nuevaCapacidadPeso,
+        })
+    }
     posicion.VolumenDisponibleCm3 = nuevaCapacidadVolumen
     posicion.PesoDisponibleKg = nuevaCapacidadPeso
     return posicion
@@ -53,18 +60,32 @@ const registrarPosicionMetrica = async (
     unidades: number,
     accion: string,
     volumenMovido: number,
-    pesoMovido: number
+    pesoMovido: number,
+    manager?: EntityManager
 ) => {
-    const metrica = getRepository(PosicionMetrica).create({
-        IdEmpresa: idEmpresa,
-        IdPosicion: idPosicion,
-        Unidades: unidades,
-        Accion: accion,
-        VolumenMovidoCm3: volumenMovido,
-        PesoMovidoKg: pesoMovido,
-        Fecha: new Date()
-    })
-    await getRepository(PosicionMetrica).save(metrica)
+    if (manager) {
+        const metrica = manager.create(PosicionMetrica, {
+            IdEmpresa: idEmpresa,
+            IdPosicion: idPosicion,
+            Unidades: unidades,
+            Accion: accion,
+            VolumenMovidoCm3: volumenMovido,
+            PesoMovidoKg: pesoMovido,
+            Fecha: new Date()
+        })
+        await manager.save(metrica)
+    } else {
+        const metrica = getRepository(PosicionMetrica).create({
+            IdEmpresa: idEmpresa,
+            IdPosicion: idPosicion,
+            Unidades: unidades,
+            Accion: accion,
+            VolumenMovidoCm3: volumenMovido,
+            PesoMovidoKg: pesoMovido,
+            Fecha: new Date()
+        })
+        await getRepository(PosicionMetrica).save(metrica)
+    }
 }
 
 
@@ -109,41 +130,43 @@ export const producto_posicionar_DALC = async (
         return {status: "ERROR", error: "Capacidad insuficiente en la posición"}
     }
 
-    if (posicionActual) {
-        await actualizarCapacidad(posicionActual, -ocupacion1.VolumenOcupadoCm3, -ocupacion1.PesoOcupadoKg)
-    }
+    try {
+        await getConnection().transaction(async manager => {
+            if (posicionActual) {
+                await actualizarCapacidad(posicionActual, -ocupacion1.VolumenOcupadoCm3, -ocupacion1.PesoOcupadoKg, manager)
+            }
 
-    if (pallet) {
-        const nuevoVol = (pallet.VolumenOcupadoCm3 ?? 0) + ocupacion1.VolumenOcupadoCm3
-        const nuevoPeso = (pallet.PesoOcupadoKg ?? 0) + ocupacion1.PesoOcupadoKg
-        const espacioVol = (pallet.Tipo?.CapacidadVolumenCm3 ?? 0) - nuevoVol
-        const espacioPeso = (pallet.Tipo?.CapacidadPesoKg ?? 0) - nuevoPeso
-        await getRepository(Pallet).update(pallet.Id, {
-            VolumenOcupadoCm3: nuevoVol,
-            PesoOcupadoKg: nuevoPeso,
-            EspacioLibreVolumenCm3: espacioVol,
-            EspacioLibrePesoKg: espacioPeso,
-            PosicionId: posicion.Id
+            if (pallet) {
+                const nuevoVol = (pallet.VolumenOcupadoCm3 ?? 0) + ocupacion1.VolumenOcupadoCm3
+                const nuevoPeso = (pallet.PesoOcupadoKg ?? 0) + ocupacion1.PesoOcupadoKg
+                const espacioVol = (pallet.Tipo?.CapacidadVolumenCm3 ?? 0) - nuevoVol
+                const espacioPeso = (pallet.Tipo?.CapacidadPesoKg ?? 0) - nuevoPeso
+                await manager.update(Pallet, pallet.Id, {
+                    VolumenOcupadoCm3: nuevoVol,
+                    PesoOcupadoKg: nuevoPeso,
+                    EspacioLibreVolumenCm3: espacioVol,
+                    EspacioLibrePesoKg: espacioPeso,
+                    PosicionId: posicion.Id
+                })
+            }
+
+            const entradaAPosicion=new PosicionProducto()
+            entradaAPosicion.IdEmpresa=idEmpresa
+            entradaAPosicion.IdPosicion=posicion.Id
+            entradaAPosicion.IdProducto=producto.Id
+            entradaAPosicion.Unidades=unidadesAPosicionar
+            entradaAPosicion.asigned= new Date()
+            entradaAPosicion.Existe=0
+            entradaAPosicion.VolumenOcupadoCm3 = ocupacion1.VolumenOcupadoCm3
+            entradaAPosicion.PesoOcupadoKg = ocupacion1.PesoOcupadoKg
+
+            const registroEntrada=manager.create(PosicionProducto,entradaAPosicion)
+            await manager.save(registroEntrada)
+            await registrarPosicionMetrica(idEmpresa, posicion.Id, unidadesAPosicionar, 'IN', ocupacion1.VolumenOcupadoCm3, ocupacion1.PesoOcupadoKg, manager)
         })
-    }
-
-    const entradaAPosicion=new PosicionProducto()
-    entradaAPosicion.IdEmpresa=idEmpresa
-    entradaAPosicion.IdPosicion=posicion.Id
-    entradaAPosicion.IdProducto=producto.Id
-    entradaAPosicion.Unidades=unidadesAPosicionar
-    entradaAPosicion.asigned= new Date()
-    entradaAPosicion.Existe=0
-    entradaAPosicion.VolumenOcupadoCm3 = ocupacion1.VolumenOcupadoCm3
-    entradaAPosicion.PesoOcupadoKg = ocupacion1.PesoOcupadoKg
-
-    const registroEntrada=getRepository(PosicionProducto).create(entradaAPosicion)
-    const result=await getRepository(PosicionProducto).save(registroEntrada)
-    if (result!=null) {
-        await registrarPosicionMetrica(idEmpresa, posicion.Id, unidadesAPosicionar, 'IN', ocupacion1.VolumenOcupadoCm3, ocupacion1.PesoOcupadoKg)
         return {status: "OK"}
-    } else {
-        return {status: "ERROR", error: result}
+    } catch (error) {
+        return {status: "ERROR", error}
     }
 }
 
@@ -392,35 +415,40 @@ export const producto_desposicionar_DALC = async (producto: Producto, posicion: 
         const factor = obtenerFactor(posicionActual)
         const ocupacionSalida = calcularOcupacion(producto, unidadesADesposicionar, factor)
 
-        if (posicionActual) {
-            await actualizarCapacidad(posicionActual, ocupacionSalida.VolumenOcupadoCm3, ocupacionSalida.PesoOcupadoKg)
+        try {
+            await getConnection().transaction(async manager => {
+                if (posicionActual) {
+                    await actualizarCapacidad(posicionActual, ocupacionSalida.VolumenOcupadoCm3, ocupacionSalida.PesoOcupadoKg, manager)
+                }
+
+                const salidaDePosicion=new PosicionProducto()
+                salidaDePosicion.IdEmpresa=producto.IdEmpresa
+                salidaDePosicion.IdPosicion=posicion.Id
+                salidaDePosicion.IdProducto=producto.Id
+                salidaDePosicion.Unidades=unidadesADesposicionar
+                salidaDePosicion.removed = new Date()
+                salidaDePosicion.Existe=1
+                salidaDePosicion.VolumenOcupadoCm3 = ocupacionSalida.VolumenOcupadoCm3
+                salidaDePosicion.PesoOcupadoKg = ocupacionSalida.PesoOcupadoKg
+
+                const registroSalida=manager.create(PosicionProducto,salidaDePosicion)
+                await manager.save(registroSalida)
+                await registrarPosicionMetrica(producto.IdEmpresa, posicion.Id, unidadesADesposicionar, 'OUT', ocupacionSalida.VolumenOcupadoCm3, ocupacionSalida.PesoOcupadoKg, manager)
+            })
+        } catch (error) {
+            return {status: "ERROR", error}
         }
-
-        const salidaDePosicion=new PosicionProducto()
-        salidaDePosicion.IdEmpresa=producto.IdEmpresa
-        salidaDePosicion.IdPosicion=posicion.Id
-        salidaDePosicion.IdProducto=producto.Id
-        salidaDePosicion.Unidades=unidadesADesposicionar
-        salidaDePosicion.removed = new Date()
-        salidaDePosicion.Existe=1
-        salidaDePosicion.VolumenOcupadoCm3 = ocupacionSalida.VolumenOcupadoCm3
-        salidaDePosicion.PesoOcupadoKg = ocupacionSalida.PesoOcupadoKg
-
-        const registroSalida=getRepository(PosicionProducto).create(salidaDePosicion)
-        const result=await getRepository(PosicionProducto).save(registroSalida)
 
         if(producto.StockUnitario)
         {
-
-            const saveHistorico = await producto_SaveHistoricoDePosicion_DALC(producto.Id,producto.IdEmpresa, posicion.Id,unidadesADesposicionar, "", usuario)
+            try {
+                await producto_SaveHistoricoDePosicion_DALC(producto.Id,producto.IdEmpresa, posicion.Id,unidadesADesposicionar, "", usuario)
+            } catch (error) {
+                return {status: "ERROR", error}
+            }
         }
 
-        if (result!=null) {
-            await registrarPosicionMetrica(producto.IdEmpresa, posicion.Id, unidadesADesposicionar, 'OUT', ocupacionSalida.VolumenOcupadoCm3, ocupacionSalida.PesoOcupadoKg)
-            return {status: "OK"}
-        } else {
-            return {status: "ERROR", error: result}
-        }
+        return {status: "OK"}
     } else {
         return {status: "ERROR", error: "No hay suficientes unidades - Posicionadas: "+unidadesEnLaPosicion[0].Unidades+" - A desposicionar: "+unidadesADesposicionar}
     }
@@ -866,67 +894,62 @@ export const producto_moverDePosicion_DALC =  async (idProducto: number, idEmpre
         return {status: "ERROR", error: "Capacidad insuficiente en la posición destino"}
     }
 
-    if (posOrigen) {
-        await actualizarCapacidad(posOrigen, ocupacionMoverSalida.VolumenOcupadoCm3, ocupacionMoverSalida.PesoOcupadoKg)
-    }
-    if (posDestino) {
-        await actualizarCapacidad(posDestino, -ocupacionMoverEntrada.VolumenOcupadoCm3, -ocupacionMoverEntrada.PesoOcupadoKg)
-    }
+    const idOrderDetalle = await ordenDetalle_getByIdProducto_DALC(idProducto)
 
-    const salidaDePosicion=new PosicionProducto()
-    salidaDePosicion.IdEmpresa=idEmpresa
-    salidaDePosicion.IdPosicion=idPosicionOrigen
-    salidaDePosicion.IdProducto=idProducto
-    salidaDePosicion.Unidades=cantidad
-    salidaDePosicion.removed = new Date()
-    salidaDePosicion.Existe=1
-    salidaDePosicion.Lote = lote
-    salidaDePosicion.Embarque = embarque
-    salidaDePosicion.UsuarioNombre = usuario
-    salidaDePosicion.VolumenOcupadoCm3 = ocupacionMoverSalida.VolumenOcupadoCm3
-    salidaDePosicion.PesoOcupadoKg = ocupacionMoverSalida.PesoOcupadoKg
+    try {
+        await getConnection().transaction(async manager => {
+            if (posOrigen) {
+                await actualizarCapacidad(posOrigen, ocupacionMoverSalida.VolumenOcupadoCm3, ocupacionMoverSalida.PesoOcupadoKg, manager)
+            }
+            if (posDestino) {
+                await actualizarCapacidad(posDestino, -ocupacionMoverEntrada.VolumenOcupadoCm3, -ocupacionMoverEntrada.PesoOcupadoKg, manager)
+            }
 
-    const registroSalida=getRepository(PosicionProducto).create(salidaDePosicion)
-    let result=await getRepository(PosicionProducto).save(registroSalida)
-    if (result!=null) {
-        await registrarPosicionMetrica(idEmpresa, idPosicionOrigen, cantidad, 'OUT', ocupacionMoverSalida.VolumenOcupadoCm3, ocupacionMoverSalida.PesoOcupadoKg)
-        const entradaAPosicion=new PosicionProducto()
-        entradaAPosicion.IdEmpresa=idEmpresa
-        entradaAPosicion.IdPosicion=idPosicionDestino
-        entradaAPosicion.IdProducto=idProducto
-        entradaAPosicion.Unidades=cantidad
-        entradaAPosicion.asigned = new Date()
-        entradaAPosicion.Existe=0
-        entradaAPosicion.Lote = lote
-        entradaAPosicion.Embarque = embarque
-        entradaAPosicion.UsuarioNombre=usuario
-        entradaAPosicion.VolumenOcupadoCm3 = ocupacionMoverEntrada.VolumenOcupadoCm3
-        entradaAPosicion.PesoOcupadoKg = ocupacionMoverEntrada.PesoOcupadoKg
+            const salidaDePosicion=new PosicionProducto()
+            salidaDePosicion.IdEmpresa=idEmpresa
+            salidaDePosicion.IdPosicion=idPosicionOrigen
+            salidaDePosicion.IdProducto=idProducto
+            salidaDePosicion.Unidades=cantidad
+            salidaDePosicion.removed = new Date()
+            salidaDePosicion.Existe=1
+            salidaDePosicion.Lote = lote
+            salidaDePosicion.Embarque = embarque
+            salidaDePosicion.UsuarioNombre = usuario
+            salidaDePosicion.VolumenOcupadoCm3 = ocupacionMoverSalida.VolumenOcupadoCm3
+            salidaDePosicion.PesoOcupadoKg = ocupacionMoverSalida.PesoOcupadoKg
 
-        const registroEntrada=getRepository(PosicionProducto).create(entradaAPosicion)
-        result=await getRepository(PosicionProducto).save(registroEntrada)
+            const registroSalida=manager.create(PosicionProducto,salidaDePosicion)
+            await manager.save(registroSalida)
+            await registrarPosicionMetrica(idEmpresa, idPosicionOrigen, cantidad, 'OUT', ocupacionMoverSalida.VolumenOcupadoCm3, ocupacionMoverSalida.PesoOcupadoKg, manager)
 
-        if (result!=null) {
-            await registrarPosicionMetrica(idEmpresa, idPosicionDestino, cantidad, 'IN', ocupacionMoverEntrada.VolumenOcupadoCm3, ocupacionMoverEntrada.PesoOcupadoKg)
+            const entradaAPosicion=new PosicionProducto()
+            entradaAPosicion.IdEmpresa=idEmpresa
+            entradaAPosicion.IdPosicion=idPosicionDestino
+            entradaAPosicion.IdProducto=idProducto
+            entradaAPosicion.Unidades=cantidad
+            entradaAPosicion.asigned = new Date()
+            entradaAPosicion.Existe=0
+            entradaAPosicion.Lote = lote
+            entradaAPosicion.Embarque = embarque
+            entradaAPosicion.UsuarioNombre=usuario
+            entradaAPosicion.VolumenOcupadoCm3 = ocupacionMoverEntrada.VolumenOcupadoCm3
+            entradaAPosicion.PesoOcupadoKg = ocupacionMoverEntrada.PesoOcupadoKg
+
+            const registroEntrada=manager.create(PosicionProducto,entradaAPosicion)
+            await manager.save(registroEntrada)
+            await registrarPosicionMetrica(idEmpresa, idPosicionDestino, cantidad, 'IN', ocupacionMoverEntrada.VolumenOcupadoCm3, ocupacionMoverEntrada.PesoOcupadoKg, manager)
+
             if(lote!=""){
-                const result=await getRepository(LoteDetalle).update({Lote: lote},{IdPosicion: idPosicionDestino})
+                await manager.update(LoteDetalle,{Lote: lote},{IdPosicion: idPosicionDestino})
             }
-            const idOrderDetalle = await ordenDetalle_getByIdProducto_DALC(idProducto)
             for (const detalleOrden of idOrderDetalle){
-
-                const posicionOk = await getRepository(PosicionEnOrdenDetalle).update({IdOrdenDetalle: detalleOrden.id, IdPosicion:idPosicionOrigen}, {IdPosicion: idPosicionDestino})
-                if(!posicionOk){
-                   return {status: "ERROR"}
-                }
+                await manager.update(PosicionEnOrdenDetalle,{IdOrdenDetalle: detalleOrden.id, IdPosicion:idPosicionOrigen},{IdPosicion: idPosicionDestino})
             }
-            return {status: "OK"}
-        } else {
-            return {status: "ERROR"}
-        }
-    } else {
-        return {status: "ERROR"}
+        })
+        return {status: "OK"}
+    } catch (error) {
+        return {status: "ERROR", error}
     }
-
 }
 
 
