@@ -38,14 +38,20 @@ export const getDashboard = async (req: Request, res: Response): Promise<Respons
         .createQueryBuilder('pm')
         .select('pm.posicionId', 'posicionId')
         .addSelect('SUM(pm.unidades)', 'mov')
+        .addSelect('SUM(pm.volumenMovidoCm3)', 'volumen')
+        .addSelect('SUM(pm.pesoMovidoKg)', 'peso')
         .where('pm.empresaId = :idEmpresa', { idEmpresa })
         .groupBy('pm.posicionId')
         .getRawMany();
     const rotacionPromedio = rotacionRows.reduce((a, r) => a + Number(r.mov), 0) / (rotacionRows.length || 1);
+    const volumenMovidoPromedio = rotacionRows.reduce((a, r) => a + Number(r.volumen), 0) / (rotacionRows.length || 1);
+    const pesoMovidoPromedio = rotacionRows.reduce((a, r) => a + Number(r.peso), 0) / (rotacionRows.length || 1);
 
     const data = {
         ocupacionPromedio: count ? totalPct / count : 0,
         rotacionPromedio,
+        volumenMovidoPromedio,
+        pesoMovidoPromedio,
         posicionesCriticas: criticas
     };
     return res.json(api.getFormatedResponse(data));

@@ -17,6 +17,12 @@ export class PosicionMetrica {
     @Column()
     Accion: string
 
+    @Column({ name: "volumenMovidoCm3", type: "float", nullable: true })
+    VolumenMovidoCm3: number
+
+    @Column({ name: "pesoMovidoKg", type: "float", nullable: true })
+    PesoMovidoKg: number
+
     @Column({ type: "timestamp", default: () => "CURRENT_TIMESTAMP" })
     Fecha: Date
 }
