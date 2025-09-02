@@ -11,7 +11,9 @@ export const posicion_add = async (
     capacidadPeso?: number,
     capacidadVolumen?: number,
     factorDesperdicio?: number,
-    categoriaPermitidaId?: number
+    categoriaPermitidaId?: number,
+    coordX?: number,
+    coordY?: number
   ) => {
     const resultToSave = getRepository(Posicion).create({
         Nombre: nombre,
@@ -20,7 +22,9 @@ export const posicion_add = async (
         PesoDisponibleKg: capacidadPeso,
         VolumenDisponibleCm3: capacidadVolumen,
         FactorDesperdicio: factorDesperdicio,
-        CategoriaPermitidaId: categoriaPermitidaId
+        CategoriaPermitidaId: categoriaPermitidaId,
+        CoordX: coordX,
+        CoordY: coordY
     })
     try {
         const result = await getRepository(Posicion).save(resultToSave)
@@ -474,7 +478,8 @@ export const posiciones_getHeatmap_DALC = async (
 
     const qb = getRepository(PosicionMetrica)
         .createQueryBuilder('pm')
-        .select('pos.descripcion', 'nombre')
+        .select('pos.coord_x', 'x')
+        .addSelect('pos.coord_y', 'y')
         .addSelect('SUM(pm.unidades)', 'valor')
         .addSelect('SUM(pm.volumenMovidoCm3)', 'volumen')
         .addSelect('SUM(pm.pesoMovidoKg)', 'peso')
@@ -490,16 +495,11 @@ export const posiciones_getHeatmap_DALC = async (
 
     const rows = await qb.groupBy('pm.posicionId').getRawMany()
 
-    return rows.map(r => {
-        const partes = (r.nombre || '').split('-')
-        const x = parseInt(partes[1], 10)
-        const y = parseInt(partes[2], 10)
-        return {
-            x,
-            y,
-            valor: Number(r.valor),
-            volumen: Number(r.volumen),
-            peso: Number(r.peso),
-        }
-    })
+    return rows.map(r => ({
+        x: Number(r.x),
+        y: Number(r.y),
+        valor: Number(r.valor),
+        volumen: Number(r.volumen),
+        peso: Number(r.peso),
+    }))
 }

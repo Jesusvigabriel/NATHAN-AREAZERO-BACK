@@ -10,8 +10,17 @@ GET {{pathUrl}}/posiciones/conPosicionadoNegativo
 Authorization: {{credenciales}}
 
 ### Crea una posicion nueva
-POST {{pathUrl}}/posiciones/newOne/P-03
+POST {{pathUrl}}/posiciones/newOne
 Authorization: {{credenciales}}
+Content-Type: application/json
+
+{
+  "nombre": "P-03",
+  "coordX": 1,
+  "coordY": 1,
+  "capacidadPeso": 1000,
+  "capacidadVolumen": 500000
+}
 
 ### Eliminar una posicion
 DELETE {{pathUrl}}/posicion/deleteOneById/3729
@@ -33,7 +42,9 @@ Content-Type: application/json
   "CapacidadTotalVolumenCm3": 500000,
   "PesoDisponibleKg": 1000,
   "VolumenDisponibleCm3": 500000,
-  "FactorDesperdicio": 0.1,
-  "CategoriaPermitidaId": 1
+"FactorDesperdicio": 0.1,
+  "CategoriaPermitidaId": 1,
+  "coordX": 1,
+  "coordY": 2
 }
 

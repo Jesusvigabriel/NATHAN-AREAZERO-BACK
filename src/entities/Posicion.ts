@@ -35,6 +35,12 @@ export class Posicion {
     @Column({name: "categoria_permitida_id", type: "int", nullable: true})
     CategoriaPermitidaId: number
 
+    @Column({name: "coord_x", type: "int", nullable: true})
+    CoordX: number
+
+    @Column({name: "coord_y", type: "int", nullable: true})
+    CoordY: number
+
     @ManyToOne(() => Categoria, categoria => categoria.Posiciones, {nullable: true})
     @JoinColumn({name: "categoria_permitida_id"})
     CategoriaPermitida?: Categoria
