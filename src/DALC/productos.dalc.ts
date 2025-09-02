@@ -24,11 +24,25 @@ import { response } from "express"
 import { stringify } from "querystring"
 import { productosHistorico_insert_DALC } from "./productosHistorico.dalc"
 
-const calcularOcupacion = (producto: Producto | undefined, unidades: number) => {
+const obtenerFactor = (posicion?: Posicion) => 1 + (posicion?.FactorDesperdicio ?? 0)
+
+const calcularOcupacion = (producto: Producto | undefined, unidades: number, factor = 1) => {
     return {
-        VolumenOcupadoCm3: (producto?.Volumen ?? 0) * unidades,
-        PesoOcupadoKg: (producto?.Peso ?? 0) * unidades,
+        VolumenOcupadoCm3: (producto?.Volumen ?? 0) * unidades * factor,
+        PesoOcupadoKg: (producto?.Peso ?? 0) * unidades * factor,
     }
+}
+
+const actualizarCapacidad = async (posicion: Posicion, deltaVolumen: number, deltaPeso: number) => {
+    const nuevaCapacidadVolumen = (posicion.CapacidadVolumenCm3 ?? 0) + deltaVolumen
+    const nuevaCapacidadPeso = (posicion.CapacidadPesoKg ?? 0) + deltaPeso
+    await getRepository(Posicion).update(posicion.Id, {
+        CapacidadVolumenCm3: nuevaCapacidadVolumen,
+        CapacidadPesoKg: nuevaCapacidadPeso,
+    })
+    posicion.CapacidadVolumenCm3 = nuevaCapacidadVolumen
+    posicion.CapacidadPesoKg = nuevaCapacidadPeso
+    return posicion
 }
 
 
@@ -39,15 +53,25 @@ export const producto_posicionar_DALC = async (producto: Producto, posicion: Pos
     }
 
     
+    const posicionActual = await posicion_getById_DALC(posicion.Id)
+    const factor = obtenerFactor(posicionActual)
+    const ocupacion1 = calcularOcupacion(producto, unidadesAPosicionar, factor)
+
+    if (posicionActual && ((posicionActual.CapacidadVolumenCm3 ?? 0) < ocupacion1.VolumenOcupadoCm3 || (posicionActual.CapacidadPesoKg ?? 0) < ocupacion1.PesoOcupadoKg)) {
+        return {status: "ERROR", error: "Capacidad insuficiente en la posición"}
+    }
+
+    if (posicionActual) {
+        await actualizarCapacidad(posicionActual, -ocupacion1.VolumenOcupadoCm3, -ocupacion1.PesoOcupadoKg)
+    }
+
     const entradaAPosicion=new PosicionProducto()
-    //entradaAPosicion.IdEmpresa=producto.IdEmpresa
     entradaAPosicion.IdEmpresa=idEmpresa
     entradaAPosicion.IdPosicion=posicion.Id
     entradaAPosicion.IdProducto=producto.Id
     entradaAPosicion.Unidades=unidadesAPosicionar
     entradaAPosicion.asigned= new Date()
     entradaAPosicion.Existe=0
-    const ocupacion1 = calcularOcupacion(producto, unidadesAPosicionar)
     entradaAPosicion.VolumenOcupadoCm3 = ocupacion1.VolumenOcupadoCm3
     entradaAPosicion.PesoOcupadoKg = ocupacion1.PesoOcupadoKg
 
@@ -74,12 +98,22 @@ export const reposicionar_producto_excel_DALC = async (producto: Producto, posic
         //Si tiene una posicion existente, muevo el articulo
         if(pos.Existe==0){
              result=await producto_moverDePosicion_DALC(producto.Id, producto.IdEmpresa, pos.IdPosicion, posicion.Id, 1, "", "",usuario)
-            
+
            const saveHistorico = await producto_SaveHistoricoDePosicion_DALC(producto.Id, producto.IdEmpresa, pos.IdPosicion, 1, loteNulo, usuario)
-          
+
         }else{
 
             //lo vuelvo a posicionar
+            const posicionActual = await posicion_getById_DALC(posicion.Id)
+            const factor = obtenerFactor(posicionActual)
+            const ocupacion2 = calcularOcupacion(producto, unidadesAPosicionar, factor)
+            if (posicionActual && ((posicionActual.CapacidadVolumenCm3 ?? 0) < ocupacion2.VolumenOcupadoCm3 || (posicionActual.CapacidadPesoKg ?? 0) < ocupacion2.PesoOcupadoKg)) {
+                return {status: "ERROR", error: "Capacidad insuficiente en la posición"}
+            }
+            if (posicionActual) {
+                await actualizarCapacidad(posicionActual, -ocupacion2.VolumenOcupadoCm3, -ocupacion2.PesoOcupadoKg)
+            }
+
             const entradaAPosicion=new PosicionProducto()
             entradaAPosicion.IdEmpresa=producto.IdEmpresa
             entradaAPosicion.IdPosicion=posicion.Id
@@ -88,10 +122,9 @@ export const reposicionar_producto_excel_DALC = async (producto: Producto, posic
             entradaAPosicion.asigned = new Date()
             entradaAPosicion.Existe=0
             entradaAPosicion.UsuarioNombre = usuario
-            const ocupacion2 = calcularOcupacion(producto, unidadesAPosicionar)
             entradaAPosicion.VolumenOcupadoCm3 = ocupacion2.VolumenOcupadoCm3
             entradaAPosicion.PesoOcupadoKg = ocupacion2.PesoOcupadoKg
-        
+
             const registroEntrada=getRepository(PosicionProducto).create(entradaAPosicion)
             result=await getRepository(PosicionProducto).save(registroEntrada)
             //Puede que tenga una posicion existe en 1, pero sea distinta a la que vino entonces si eso pasa guardo en el historico.
@@ -103,6 +136,15 @@ export const reposicionar_producto_excel_DALC = async (producto: Producto, posic
 
 
     }else{
+        const posicionActual = await posicion_getById_DALC(posicion.Id)
+        const factor = obtenerFactor(posicionActual)
+        const ocupacion3 = calcularOcupacion(producto, unidadesAPosicionar, factor)
+        if (posicionActual && ((posicionActual.CapacidadVolumenCm3 ?? 0) < ocupacion3.VolumenOcupadoCm3 || (posicionActual.CapacidadPesoKg ?? 0) < ocupacion3.PesoOcupadoKg)) {
+            return {status: "ERROR", error: "Capacidad insuficiente en la posición"}
+        }
+        if (posicionActual) {
+            await actualizarCapacidad(posicionActual, -ocupacion3.VolumenOcupadoCm3, -ocupacion3.PesoOcupadoKg)
+        }
         const entradaAPosicion=new PosicionProducto()
         entradaAPosicion.IdEmpresa=producto.IdEmpresa
         entradaAPosicion.IdPosicion=posicion.Id
@@ -111,10 +153,9 @@ export const reposicionar_producto_excel_DALC = async (producto: Producto, posic
         entradaAPosicion.asigned= new Date()
         entradaAPosicion.Existe=0
         entradaAPosicion.UsuarioNombre = usuario
-        const ocupacion3 = calcularOcupacion(producto, unidadesAPosicionar)
         entradaAPosicion.VolumenOcupadoCm3 = ocupacion3.VolumenOcupadoCm3
         entradaAPosicion.PesoOcupadoKg = ocupacion3.PesoOcupadoKg
-    
+
         const registroEntrada=getRepository(PosicionProducto).create(entradaAPosicion)
         result=await getRepository(PosicionProducto).save(registroEntrada)
     }
@@ -163,6 +204,15 @@ export const reposicionar_partida_excel_DALC = async (partida: Partida, posicion
         }else{
 
             //lo vuelvo a posicionar
+            const posicionActual = await posicion_getById_DALC(posicion.Id)
+            const factor = obtenerFactor(posicionActual)
+            const ocupacionPartida = calcularOcupacion(productoInfo, unidadesAPosicionar, factor)
+            if (posicionActual && ((posicionActual.CapacidadVolumenCm3 ?? 0) < ocupacionPartida.VolumenOcupadoCm3 || (posicionActual.CapacidadPesoKg ?? 0) < ocupacionPartida.PesoOcupadoKg)) {
+                return {status: "ERROR", error: "Capacidad insuficiente en la posición"}
+            }
+            if (posicionActual) {
+                await actualizarCapacidad(posicionActual, -ocupacionPartida.VolumenOcupadoCm3, -ocupacionPartida.PesoOcupadoKg)
+            }
             const entradaAPosicion=new PosicionProducto()
             entradaAPosicion.IdEmpresa=partida.IdEmpresa
             entradaAPosicion.IdPosicion=posicion.Id
@@ -171,10 +221,9 @@ export const reposicionar_partida_excel_DALC = async (partida: Partida, posicion
             entradaAPosicion.asigned = new Date()
             entradaAPosicion.Existe=0
             entradaAPosicion.UsuarioNombre = usuario
-            const ocupacionPartida = calcularOcupacion(productoInfo, unidadesAPosicionar)
             entradaAPosicion.VolumenOcupadoCm3 = ocupacionPartida.VolumenOcupadoCm3
             entradaAPosicion.PesoOcupadoKg = ocupacionPartida.PesoOcupadoKg
-        
+
             const registroEntrada=getRepository(PosicionProducto).create(entradaAPosicion)
             result=await getRepository(PosicionProducto).save(registroEntrada)
             //Puede que tenga una posicion existe en 1, pero sea distinta a la que vino entonces si eso pasa guardo en el historico.
@@ -186,6 +235,15 @@ export const reposicionar_partida_excel_DALC = async (partida: Partida, posicion
 
 
     }else{
+        const posicionActual = await posicion_getById_DALC(posicion.Id)
+        const factor = obtenerFactor(posicionActual)
+        const ocupacionPartida2 = calcularOcupacion(productoInfo, unidadesAPosicionar, factor)
+        if (posicionActual && ((posicionActual.CapacidadVolumenCm3 ?? 0) < ocupacionPartida2.VolumenOcupadoCm3 || (posicionActual.CapacidadPesoKg ?? 0) < ocupacionPartida2.PesoOcupadoKg)) {
+            return {status: "ERROR", error: "Capacidad insuficiente en la posición"}
+        }
+        if (posicionActual) {
+            await actualizarCapacidad(posicionActual, -ocupacionPartida2.VolumenOcupadoCm3, -ocupacionPartida2.PesoOcupadoKg)
+        }
         const entradaAPosicion=new PosicionProducto()
         entradaAPosicion.IdEmpresa=partida.IdEmpresa
         entradaAPosicion.IdPosicion=posicion.Id
@@ -194,10 +252,9 @@ export const reposicionar_partida_excel_DALC = async (partida: Partida, posicion
         entradaAPosicion.asigned= new Date()
         entradaAPosicion.Existe=0
         entradaAPosicion.UsuarioNombre = usuario
-        const ocupacionPartida2 = calcularOcupacion(productoInfo, unidadesAPosicionar)
         entradaAPosicion.VolumenOcupadoCm3 = ocupacionPartida2.VolumenOcupadoCm3
         entradaAPosicion.PesoOcupadoKg = ocupacionPartida2.PesoOcupadoKg
-    
+
         const registroEntrada=getRepository(PosicionProducto).create(entradaAPosicion)
         result=await getRepository(PosicionProducto).save(registroEntrada)
     }
@@ -218,6 +275,14 @@ export const producto_desposicionar_DALC = async (producto: Producto, posicion: 
         return {status: "ERROR", error: "En la posición indicada no está posicionado el producto solicitado"}
     }
     if (unidadesEnLaPosicion[0].Unidades>=unidadesADesposicionar) {
+        const posicionActual = await posicion_getById_DALC(posicion.Id)
+        const factor = obtenerFactor(posicionActual)
+        const ocupacionSalida = calcularOcupacion(producto, unidadesADesposicionar, factor)
+
+        if (posicionActual) {
+            await actualizarCapacidad(posicionActual, ocupacionSalida.VolumenOcupadoCm3, ocupacionSalida.PesoOcupadoKg)
+        }
+
         const salidaDePosicion=new PosicionProducto()
         salidaDePosicion.IdEmpresa=producto.IdEmpresa
         salidaDePosicion.IdPosicion=posicion.Id
@@ -225,24 +290,22 @@ export const producto_desposicionar_DALC = async (producto: Producto, posicion: 
         salidaDePosicion.Unidades=unidadesADesposicionar
         salidaDePosicion.removed = new Date()
         salidaDePosicion.Existe=1
-        const ocupacionSalida = calcularOcupacion(producto, unidadesADesposicionar)
         salidaDePosicion.VolumenOcupadoCm3 = ocupacionSalida.VolumenOcupadoCm3
         salidaDePosicion.PesoOcupadoKg = ocupacionSalida.PesoOcupadoKg
-
 
         const registroSalida=getRepository(PosicionProducto).create(salidaDePosicion)
         const result=await getRepository(PosicionProducto).save(registroSalida)
 
         if(producto.StockUnitario)
         {
-           
-            const saveHistorico = await producto_SaveHistoricoDePosicion_DALC(producto.Id,producto.IdEmpresa, posicion.Id,unidadesADesposicionar, "", usuario) 
+
+            const saveHistorico = await producto_SaveHistoricoDePosicion_DALC(producto.Id,producto.IdEmpresa, posicion.Id,unidadesADesposicionar, "", usuario)
         }
 
         if (result!=null) {
             return {status: "OK"}
         } else {
-            return {status: "ERROR", error: result}    
+            return {status: "ERROR", error: result}
         }
     } else {
         return {status: "ERROR", error: "No hay suficientes unidades - Posicionadas: "+unidadesEnLaPosicion[0].Unidades+" - A desposicionar: "+unidadesADesposicionar}
@@ -253,6 +316,13 @@ export const producto_desposicionar_DALC = async (producto: Producto, posicion: 
 export const producto_desposicionar_paqueteria_DALC = async (producto: number, posicion: number, unidadesADesposicionar: number, idEmpresa: number) => {
 
     const productoInfo = await getRepository(Producto).findOne({where: {Id: producto, IdEmpresa: idEmpresa}})
+    const posicionActual = await posicion_getById_DALC(posicion)
+    const factor = obtenerFactor(posicionActual)
+    const ocupacionPaqueteria = calcularOcupacion(productoInfo, unidadesADesposicionar, factor)
+
+    if (posicionActual) {
+        await actualizarCapacidad(posicionActual, ocupacionPaqueteria.VolumenOcupadoCm3, ocupacionPaqueteria.PesoOcupadoKg)
+    }
 
     const salidaDePosicion=new PosicionProducto()
     salidaDePosicion.IdEmpresa=idEmpresa
@@ -261,17 +331,16 @@ export const producto_desposicionar_paqueteria_DALC = async (producto: number, p
     salidaDePosicion.Unidades=unidadesADesposicionar
     salidaDePosicion.removed = new Date()
     salidaDePosicion.Existe=1
-    const ocupacionPaqueteria = calcularOcupacion(productoInfo, unidadesADesposicionar)
     salidaDePosicion.VolumenOcupadoCm3 = ocupacionPaqueteria.VolumenOcupadoCm3
     salidaDePosicion.PesoOcupadoKg = ocupacionPaqueteria.PesoOcupadoKg
 
     const registroSalida=getRepository(PosicionProducto).create(salidaDePosicion)
     const result=await getRepository(PosicionProducto).save(registroSalida)
-    
+
     if (result!=null) {
         return {status: "OK"}
     } else {
-        return {status: "ERROR", error: result}    
+        return {status: "ERROR", error: result}
     }
 }
 
@@ -279,6 +348,14 @@ export const producto_desposicionar_Lote_DALC = async (posicion: number, unidade
 
     const embarque = await getRepository(Lote).findOne({where: {Lote: lote}})
     const productoInfo = await getRepository(Producto).findOne({where: {Id: idProducto, IdEmpresa: idEmpresa}})
+    const posicionActual = await posicion_getById_DALC(posicion)
+    const factor = obtenerFactor(posicionActual)
+    const ocupacionLote = calcularOcupacion(productoInfo, unidadesADesposicionar, factor)
+
+    if (posicionActual) {
+        await actualizarCapacidad(posicionActual, ocupacionLote.VolumenOcupadoCm3, ocupacionLote.PesoOcupadoKg)
+    }
+
     const salidaDePosicion=new PosicionProducto()
     salidaDePosicion.IdEmpresa=idEmpresa
     salidaDePosicion.IdPosicion=posicion
@@ -291,17 +368,16 @@ export const producto_desposicionar_Lote_DALC = async (posicion: number, unidade
     salidaDePosicion.Unidades=unidadesADesposicionar
     salidaDePosicion.removed = new Date()
     salidaDePosicion.Existe=1
-    const ocupacionLote = calcularOcupacion(productoInfo, unidadesADesposicionar)
     salidaDePosicion.VolumenOcupadoCm3 = ocupacionLote.VolumenOcupadoCm3
     salidaDePosicion.PesoOcupadoKg = ocupacionLote.PesoOcupadoKg
 
     const registroSalida=getRepository(PosicionProducto).create(salidaDePosicion)
     const result=await getRepository(PosicionProducto).save(registroSalida)
-    
+
     if (result!=null) {
         return {status: "OK"}
     } else {
-        return {status: "ERROR", error: result}    
+        return {status: "ERROR", error: result}
     }
 }
 
@@ -361,6 +437,8 @@ export const actualizar_unidades_loteDetalle_DALC = async (body: any)=>{
     const [year, month, day] = body.fecha.split('-').map(Number);
     const fechaDate: Date = new Date(year, month - 1, day, horaActual.getHours(), horaActual.getMinutes(), horaActual.getSeconds())
     const productoInfo = await getRepository(Producto).findOne({where: {Id: body.idProducto, IdEmpresa: body.idEmpresa}})
+    const posicionActual = await posicion_getById_DALC(body.idPosicion)
+    const factor = obtenerFactor(posicionActual)
     
     await createMovimientosStock_DALC({Orden: body.comprobante, IdProducto: parseInt(body.idProducto), Unidades: parseInt(body.unidades), Tipo: parseInt(body.tipoReingreso), IdEmpresa: parseInt(body.idEmpresa), Fecha: fechaDate, codprod: body.barcode, Usuario: body.usuario,  Lote: body.lote}) 
     .then(resultado =>{
@@ -369,6 +447,13 @@ export const actualizar_unidades_loteDetalle_DALC = async (body: any)=>{
     .catch(error=>{
 
     })
+    const ocupacionLoteDetalle = calcularOcupacion(productoInfo, body.unidades, factor)
+    if (posicionActual && ((posicionActual.CapacidadVolumenCm3 ?? 0) < ocupacionLoteDetalle.VolumenOcupadoCm3 || (posicionActual.CapacidadPesoKg ?? 0) < ocupacionLoteDetalle.PesoOcupadoKg)) {
+        return {status: "ERROR", error: "Capacidad insuficiente en la posición"}
+    }
+    if (posicionActual) {
+        await actualizarCapacidad(posicionActual, -ocupacionLoteDetalle.VolumenOcupadoCm3, -ocupacionLoteDetalle.PesoOcupadoKg)
+    }
     const entradaAPosicion=new PosicionProducto()
     entradaAPosicion.IdEmpresa= body.idEmpresa
     entradaAPosicion.IdPosicion= body.idPosicion
@@ -379,14 +464,13 @@ export const actualizar_unidades_loteDetalle_DALC = async (body: any)=>{
     entradaAPosicion.Lote= body.lote
     entradaAPosicion.Embarque= body.embarque
     entradaAPosicion.UsuarioNombre= body.userName
-    const ocupacionLoteDetalle = calcularOcupacion(productoInfo, body.unidades)
     entradaAPosicion.VolumenOcupadoCm3 = ocupacionLoteDetalle.VolumenOcupadoCm3
     entradaAPosicion.PesoOcupadoKg = ocupacionLoteDetalle.PesoOcupadoKg
-    
+
     const registroEntrada=getRepository(PosicionProducto).create(entradaAPosicion)
     const result=await getRepository(PosicionProducto).save(registroEntrada)
-    console.log(result)
     await getRepository(LoteDetalle).update({Lote: body.lote,Barcode: body.barcode, IdEmpresa: body.idEmpresa}, {IdPosicion: body.idPosicion})
+    return {status: "OK", detalle: result}
 }
 
 export const productos_getId_byBarcodes_DALC = async (idEmpresa: number, barcodes: string[]) => {
@@ -526,6 +610,17 @@ export const putLote_ByBarcodeAndEmpresa_DALC = async (barcode: string, idEmpres
 
                     if(unResultado.Ingreso == false){
                         const productoInfo = await getRepository(Producto).findOne({where: {Id: unResultado.IdProducto, IdEmpresa: idEmpresa}})
+                        const posicionActual = await posicion_getById_DALC(unResultado.IdPosicion)
+                        const factor = obtenerFactor(posicionActual)
+                        const ocupacionPutLote = calcularOcupacion(productoInfo, unResultado.Unidades, factor)
+                        if (posicionActual && ((posicionActual.CapacidadVolumenCm3 ?? 0) < ocupacionPutLote.VolumenOcupadoCm3 || (posicionActual.CapacidadPesoKg ?? 0) < ocupacionPutLote.PesoOcupadoKg)) {
+                            ingresoError.push(unResultado)
+                            response.push({status: "ERROR", data: ingresoError, mensaje: "Capacidad insuficiente"})
+                            continue
+                        }
+                        if (posicionActual) {
+                            await actualizarCapacidad(posicionActual, -ocupacionPutLote.VolumenOcupadoCm3, -ocupacionPutLote.PesoOcupadoKg)
+                        }
 
                         const entradaAPosicion=new PosicionProducto()
                         entradaAPosicion.IdEmpresa=idEmpresa
@@ -537,20 +632,19 @@ export const putLote_ByBarcodeAndEmpresa_DALC = async (barcode: string, idEmpres
                         entradaAPosicion.Lote=unBarcode
                         entradaAPosicion.Embarque=unResultado.Embarque
                         entradaAPosicion.UsuarioNombre=userName
-                        const ocupacionPutLote = calcularOcupacion(productoInfo, unResultado.Unidades)
                         entradaAPosicion.VolumenOcupadoCm3 = ocupacionPutLote.VolumenOcupadoCm3
                         entradaAPosicion.PesoOcupadoKg = ocupacionPutLote.PesoOcupadoKg
-                        
+
                         const registroEntrada=getRepository(PosicionProducto).create(entradaAPosicion)
                         const result=await getRepository(PosicionProducto).save(registroEntrada)
-                        await createMovimientosStock_DALC({Orden: comprobante, IdProducto: unResultado.IdProducto, Unidades: unResultado.Unidades, Tipo: 0, IdEmpresa: idEmpresa, Fecha: fechaDate, codprod: unResultado.Barcode, Usuario: userName,  Lote: unBarcode})    
+                        await createMovimientosStock_DALC({Orden: comprobante, IdProducto: unResultado.IdProducto, Unidades: unResultado.Unidades, Tipo: 0, IdEmpresa: idEmpresa, Fecha: fechaDate, codprod: unResultado.Barcode, Usuario: userName,  Lote: unBarcode})
                         ingresoExitoso.push(unResultado)
-                        response.push({status: "OK", data: ingresoExitoso, mensaje: "Se ingreso con exito"}) 
-                        
+                        response.push({status: "OK", data: ingresoExitoso, mensaje: "Se ingreso con exito"})
+
                         await getRepository(LoteDetalle).update({Lote: unResultado.Lote, IdEmpresa: idEmpresa, IdProducto: unResultado.IdProducto}, {Ingreso: true})
                     } else {
                         ingresoError.push(unResultado)
-                        response.push({status: "ERROR", data: ingresoError, mensaje: "Ya ingresado"}) 
+                        response.push({status: "ERROR", data: ingresoError, mensaje: "Ya ingresado"})
                     }
                 }
         
@@ -590,9 +684,19 @@ export const putLote_ByBarcodeAndEmpresa_DALC = async (barcode: string, idEmpres
             if(resultLoteDetalle){
                 for (const unResultado of resultLoteDetalle){
 
+                    const productoInfo = await getRepository(Producto).findOne({where: {Id: unResultado.idProducto, IdEmpresa: idEmpresa}})
+                    const posicionActual = await posicion_getById_DALC(unResultado.idPosicion)
+                    const factor = obtenerFactor(posicionActual)
+                    const ocupacionPutLote2 = calcularOcupacion(productoInfo, unResultado.unidades, factor)
+                    if (posicionActual && ((posicionActual.CapacidadVolumenCm3 ?? 0) < ocupacionPutLote2.VolumenOcupadoCm3 || (posicionActual.CapacidadPesoKg ?? 0) < ocupacionPutLote2.PesoOcupadoKg)) {
+                        response.push({status: "ERROR", data: unResultado, mensaje: "Capacidad insuficiente"})
+                        continue
+                    }
+                    if (posicionActual) {
+                        await actualizarCapacidad(posicionActual, -ocupacionPutLote2.VolumenOcupadoCm3, -ocupacionPutLote2.PesoOcupadoKg)
+                    }
 
                     const entradaAPosicion=new PosicionProducto()
-                    //entradaAPosicion.IdEmpresa=producto.IdEmpresa
                     entradaAPosicion.IdEmpresa=idEmpresa
                     entradaAPosicion.IdPosicion=unResultado.idPosicion
                     entradaAPosicion.IdProducto=unResultado.idProducto
@@ -602,24 +706,21 @@ export const putLote_ByBarcodeAndEmpresa_DALC = async (barcode: string, idEmpres
                     entradaAPosicion.Lote=unResultado.lote
                     entradaAPosicion.Embarque=unResultado.embarque
                     entradaAPosicion.UsuarioNombre=userName
-                    const productoInfo = await getRepository(Producto).findOne({where: {Id: unResultado.idProducto, IdEmpresa: idEmpresa}})
-                    const ocupacionPutLote2 = calcularOcupacion(productoInfo, unResultado.unidades)
                     entradaAPosicion.VolumenOcupadoCm3 = ocupacionPutLote2.VolumenOcupadoCm3
                     entradaAPosicion.PesoOcupadoKg = ocupacionPutLote2.PesoOcupadoKg
 
                     const registroEntrada=getRepository(PosicionProducto).create(entradaAPosicion)
                     const result=await getRepository(PosicionProducto).save(registroEntrada)
-                    
-                    // await getRepository(PosicionProducto).update({Lote: unResultado.lote, IdEmpresa: idEmpresa, IdProducto: unResultado.idProducto}, {Unidades: unResultado.unidades, asigned: new Date(), UsuarioNombre: userName})
-                    await createMovimientosStock_DALC({Orden: comprobante, IdProducto: unResultado.idProducto, Unidades: parseInt(unResultado.unidades), Tipo: 0, IdEmpresa: idEmpresa, Fecha: fechaDate, codprod: unResultado.barcode, Usuario: userName,  Lote: unResultado.lote}) 
-                    response.push({status: "OK", data: resultLoteDetalle, mensaje: "Se ingreso con exito"}) 
-                   
+
+                    await createMovimientosStock_DALC({Orden: comprobante, IdProducto: unResultado.idProducto, Unidades: parseInt(unResultado.unidades), Tipo: 0, IdEmpresa: idEmpresa, Fecha: fechaDate, codprod: unResultado.barcode, Usuario: userName,  Lote: unResultado.lote})
+                    response.push({status: "OK", data: resultLoteDetalle, mensaje: "Se ingreso con exito"})
+
                     await getRepository(LoteDetalle).update({Barcode: unResultado.barcode, IdEmpresa: idEmpresa, Lote: lote}, {Ingreso: true})
                 }
             } else {
-                response.push({status: "ERROR", data: resultLoteDetalle, mensaje: "Error en el ingreso"})    
+                response.push({status: "ERROR", data: resultLoteDetalle, mensaje: "Error en el ingreso"})
             }
-        } 
+        }
     }
 
     return response  
@@ -632,6 +733,23 @@ export const producto_getBySKUAndEmpresa_DALC = async (sku: string, idEmpresa: n
 
 export const producto_moverDePosicion_DALC =  async (idProducto: number, idEmpresa: number, idPosicionOrigen: number, idPosicionDestino: number, cantidad: number,lote: string, embarque: string, usuario: string) => {
     const productoInfo = await getRepository(Producto).findOne({where: {Id: idProducto, IdEmpresa: idEmpresa}})
+    const posOrigen = await posicion_getById_DALC(idPosicionOrigen)
+    const posDestino = await posicion_getById_DALC(idPosicionDestino)
+    const factorOrigen = obtenerFactor(posOrigen)
+    const factorDestino = obtenerFactor(posDestino)
+    const ocupacionMoverSalida = calcularOcupacion(productoInfo, cantidad, factorOrigen)
+    const ocupacionMoverEntrada = calcularOcupacion(productoInfo, cantidad, factorDestino)
+
+    if (posDestino && ((posDestino.CapacidadVolumenCm3 ?? 0) < ocupacionMoverEntrada.VolumenOcupadoCm3 || (posDestino.CapacidadPesoKg ?? 0) < ocupacionMoverEntrada.PesoOcupadoKg)) {
+        return {status: "ERROR", error: "Capacidad insuficiente en la posición destino"}
+    }
+
+    if (posOrigen) {
+        await actualizarCapacidad(posOrigen, ocupacionMoverSalida.VolumenOcupadoCm3, ocupacionMoverSalida.PesoOcupadoKg)
+    }
+    if (posDestino) {
+        await actualizarCapacidad(posDestino, -ocupacionMoverEntrada.VolumenOcupadoCm3, -ocupacionMoverEntrada.PesoOcupadoKg)
+    }
 
     const salidaDePosicion=new PosicionProducto()
     salidaDePosicion.IdEmpresa=idEmpresa
@@ -643,10 +761,8 @@ export const producto_moverDePosicion_DALC =  async (idProducto: number, idEmpre
     salidaDePosicion.Lote = lote
     salidaDePosicion.Embarque = embarque
     salidaDePosicion.UsuarioNombre = usuario
-    const ocupacionMoverSalida = calcularOcupacion(productoInfo, cantidad)
     salidaDePosicion.VolumenOcupadoCm3 = ocupacionMoverSalida.VolumenOcupadoCm3
     salidaDePosicion.PesoOcupadoKg = ocupacionMoverSalida.PesoOcupadoKg
-    
 
     const registroSalida=getRepository(PosicionProducto).create(salidaDePosicion)
     let result=await getRepository(PosicionProducto).save(registroSalida)
@@ -661,7 +777,6 @@ export const producto_moverDePosicion_DALC =  async (idProducto: number, idEmpre
         entradaAPosicion.Lote = lote
         entradaAPosicion.Embarque = embarque
         entradaAPosicion.UsuarioNombre=usuario
-        const ocupacionMoverEntrada = calcularOcupacion(productoInfo, cantidad)
         entradaAPosicion.VolumenOcupadoCm3 = ocupacionMoverEntrada.VolumenOcupadoCm3
         entradaAPosicion.PesoOcupadoKg = ocupacionMoverEntrada.PesoOcupadoKg
 
@@ -672,9 +787,9 @@ export const producto_moverDePosicion_DALC =  async (idProducto: number, idEmpre
             if(lote!=""){
                 const result=await getRepository(LoteDetalle).update({Lote: lote},{IdPosicion: idPosicionDestino})
             }
-            const idOrderDetalle = await ordenDetalle_getByIdProducto_DALC(idProducto) 
+            const idOrderDetalle = await ordenDetalle_getByIdProducto_DALC(idProducto)
             for (const detalleOrden of idOrderDetalle){
-             
+
                 const posicionOk = await getRepository(PosicionEnOrdenDetalle).update({IdOrdenDetalle: detalleOrden.id, IdPosicion:idPosicionOrigen}, {IdPosicion: idPosicionDestino})
                 if(!posicionOk){
                    return {status: "ERROR"}
@@ -683,7 +798,7 @@ export const producto_moverDePosicion_DALC =  async (idProducto: number, idEmpre
             return {status: "OK"}
         } else {
             return {status: "ERROR"}
-        }     
+        }
     } else {
         return {status: "ERROR"}
     }
@@ -1189,6 +1304,23 @@ export const update_productosPosicionByLoteAndIdPosicion = async(boxNumber: stri
                 }else{
                     // Ahora desposicionamos ese stock para volver a posicionar en la posicion nueva
                     const productoInfo = await getRepository(Producto).findOne({where: {Id: cadaLote.IdProducto, IdEmpresa: cadaLote.IdEmpresa}})
+                    const posOrigen = await posicion_getById_DALC(cadaLote.IdPosicion)
+                    const posDestino = await posicion_getById_DALC(idPosicion)
+                    const factorOrigen = obtenerFactor(posOrigen)
+                    const factorDestino = obtenerFactor(posDestino)
+                    const ocupacionQuitar = calcularOcupacion(productoInfo, parseInt(total), factorOrigen)
+                    const ocupacionEntrada = calcularOcupacion(productoInfo, parseInt(total), factorDestino)
+                    if (posDestino && ((posDestino.CapacidadVolumenCm3 ?? 0) < ocupacionEntrada.VolumenOcupadoCm3 || (posDestino.CapacidadPesoKg ?? 0) < ocupacionEntrada.PesoOcupadoKg)) {
+                        posicionesNuevas.push({lote: cadaLote.Lote,unidades: "", IdProducto: cadaLote.IdProducto, status:"ERROR",posicion: " ",mensaje:"Capacidad insuficiente"})
+                        continue
+                    }
+                    if (posOrigen) {
+                        await actualizarCapacidad(posOrigen, ocupacionQuitar.VolumenOcupadoCm3, ocupacionQuitar.PesoOcupadoKg)
+                    }
+                    if (posDestino) {
+                        await actualizarCapacidad(posDestino, -ocupacionEntrada.VolumenOcupadoCm3, -ocupacionEntrada.PesoOcupadoKg)
+                    }
+
                     const quitarPosicion=new PosicionProducto()
                     quitarPosicion.IdEmpresa=cadaLote.IdEmpresa
                     quitarPosicion.IdPosicion=cadaLote.IdPosicion
@@ -1199,7 +1331,6 @@ export const update_productosPosicionByLoteAndIdPosicion = async(boxNumber: stri
                     quitarPosicion.Lote= cadaLote.Lote
                     quitarPosicion.Embarque= cadaLote.Embarque
                     quitarPosicion.UsuarioNombre= userName
-                    const ocupacionQuitar = calcularOcupacion(productoInfo, parseInt(total))
                     quitarPosicion.VolumenOcupadoCm3 = ocupacionQuitar.VolumenOcupadoCm3
                     quitarPosicion.PesoOcupadoKg = ocupacionQuitar.PesoOcupadoKg
 
@@ -1217,7 +1348,6 @@ export const update_productosPosicionByLoteAndIdPosicion = async(boxNumber: stri
                     entradaAPosicion.Lote= cadaLote.Lote
                     entradaAPosicion.Embarque= cadaLote.Embarque
                     entradaAPosicion.UsuarioNombre= userName
-                    const ocupacionEntrada = calcularOcupacion(productoInfo, parseInt(total))
                     entradaAPosicion.VolumenOcupadoCm3 = ocupacionEntrada.VolumenOcupadoCm3
                     entradaAPosicion.PesoOcupadoKg = ocupacionEntrada.PesoOcupadoKg
 
@@ -1225,7 +1355,7 @@ export const update_productosPosicionByLoteAndIdPosicion = async(boxNumber: stri
                     try{
                         const registroExitoso = await getRepository(PosicionProducto).save(registroEntrada)
                         posicionesNuevas.push(registroExitoso)
-                        
+
                         if(posicionesNuevas.length > 0){
                             for(const ordenDetalle of idOrdenesDetalle){
                                 const result=await getRepository(PosicionEnOrdenDetalle).update({IdProducto: cadaLote.IdProducto, IdOrdenDetalle: ordenDetalle.Id},{IdPosicion: idPosicion})
