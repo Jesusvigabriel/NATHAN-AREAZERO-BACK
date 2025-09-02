@@ -23,7 +23,8 @@ import {
     posiciones_getByLote_DALC,
     posiciones_getByLoteDetalle_DALC,
     posiciones_getAllByEmpresaConDetalle_DALC,
-    posiciones_getAllByEmpresaConProductos_DALC
+    posiciones_getAllByEmpresaConProductos_DALC,
+    posiciones_getHeatmap_DALC
 } from '../DALC/posiciones.dalc'
 import { HistoricoPosiciones } from "../entities/HistoricoPosiciones"
 
@@ -398,6 +399,23 @@ export const getAllByEmpresaConProductos = async (req: Request, res: Response): 
         );
     }
 };
+
+export const getHeatmap = async (req: Request, res: Response): Promise<Response> => {
+    const api = require('lsi-util-node/API')
+    const idEmpresa = Number(req.query.empresa)
+    const periodo = req.query.periodo as string
+
+    if (isNaN(idEmpresa) || !periodo) {
+        return res.status(400).json(api.getFormatedResponse('', 'Parámetros inválidos'))
+    }
+
+    try {
+        const data = await posiciones_getHeatmap_DALC(idEmpresa, periodo)
+        return res.json(api.getFormatedResponse(data))
+    } catch (err: any) {
+        return res.status(500).json(api.getFormatedResponse('', err.message || 'Error interno'))
+    }
+}
 
 
 
