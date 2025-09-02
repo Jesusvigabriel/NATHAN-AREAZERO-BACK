@@ -130,11 +130,12 @@ export const posiciones_getContenidos_byNombre_DALC = async (nombresPosiciones: 
 
 export const posicion_getContent_ByIdPosicion_DALC = async (idPosicion: number) => {
     const productosDeLaPosicion=await createQueryBuilder("pos_prod", "pp")
-        .select("pp.posicionId, productId, empresaId, sum(unidades * if(existe, -1, 1)) as total, prod.barrcode as barcode, prod.descripcion as nombre, pp.asigned as fechaPosicionado")
+        .select("pp.posicionId, productId, empresaId, sum(unidades * if(existe, -1, 1)) as total, prod.barrcode as barcode, prod.descripcion as nombre, min(pp.asigned) as fechaPosicionado")
         .where("posicionId = :idPosicion", {idPosicion})
         .innerJoin("productos", "prod", "prod.id=pp.productId")
         .groupBy("productId")
         .having("total<>0")
+        .orderBy("fechaPosicionado","ASC")
         .getRawMany()
 
     const devolver=[]
@@ -168,11 +169,11 @@ export const getAllPosicionesByIdEmpresa_DALC = async (idEmpresa: number) => {
 
 export const posicion_getContent_ByIdProducto_DALC = async (idProducto: number) => {
     const productosDeLaPosicion=await createQueryBuilder("pos_prod", "pp")
-        .select("pp.posicionId, pp.productId, pp.empresaId, sum(pp.unidades * if(pp.existe, -1, 1)) as total,"+ 
-        "pp.asigned as fechaPosicionado, pp.id, pp.removed, pp.existe")
+        .select("pp.posicionId, pp.productId, pp.empresaId, sum(pp.unidades * if(pp.existe, -1, 1)) as total, min(pp.asigned) as fechaPosicionado, pp.id, pp.removed, pp.existe")
         .where("productId = :idProducto", {idProducto})
-        .groupBy("pp.productId")
+        .groupBy("pp.posicionId")
         .having("total<>0")
+        .orderBy("fechaPosicionado","ASC")
         .getRawMany()
 
     const devolver=[]
@@ -270,12 +271,13 @@ export const posicionAnterior_getByIdProd_DALC = async (id: number, idEmpresa: n
 
 export const posiciones_getByIdProd_DALC = async (id: number, idEmpresa: number) => {
     const results = await createQueryBuilder("pos_prod", "pp")
-        .select(" pp.empresaId as Empresa, pp.posicionId as IdPosicion, sum(pp.unidades * if(pp.existe,-1,1)) as Unidades, pp.existe as Existe, pos.descripcion as Descripcion ")
+        .select(" pp.empresaId as Empresa, pp.posicionId as IdPosicion, sum(pp.unidades * if(pp.existe,-1,1)) as Unidades, pp.existe as Existe, pos.descripcion as Descripcion, min(pp.asigned) as Fecha ")
         .where("pp.empresaid  = :idEmpresa", {idEmpresa})
         .andWhere("pp.productid  = :id", {id})
         .innerJoin("posiciones", "pos", "pp.posicionID = pos.id")
         .groupBy("pp.posicionid")
         .having("unidades>0")
+        .orderBy("Fecha","ASC")
         .execute()
 
 
@@ -285,23 +287,25 @@ export const posiciones_getByIdProd_DALC = async (id: number, idEmpresa: number)
 
 export const posiciones_getByIdProdAndLote_DALC = async (id: number, idEmpresa: number, lote: string) => {
     const results = await createQueryBuilder("pos_prod", "pp")
-        .select(" pp.empresaId as Empresa, pp.posicionId as IdPosicion, sum(pp.unidades * if(pp.existe,-1,1)) as Unidades, pp.existe as Existe, pos.descripcion as Descripcion ")
+        .select(" pp.empresaId as Empresa, pp.posicionId as IdPosicion, sum(pp.unidades * if(pp.existe,-1,1)) as Unidades, pp.existe as Existe, pos.descripcion as Descripcion, min(pp.asigned) as Fecha ")
         .where("pp.empresaid  = :idEmpresa", {idEmpresa})
         .andWhere("pp.productid  = :id", {id})
         .andWhere("pp.lote  = :lote", {lote})
         .innerJoin("posiciones", "pos", "pp.posicionID = pos.id")
         .groupBy("pp.posicionid")
         .having("unidades>0")
+        .orderBy("Fecha","ASC")
         .execute()
     return results
 }
 
 export const posiciones_getByLote_DALC = async (idEmpresa: number, lote: string) => {
     const results = await createQueryBuilder("pos_prod", "pp")
-        .select(" pp.empresaId as Empresa, pp.posicionId as IdPosicion, sum(unidades * if(existe, -1, 1)) as total")
+        .select(" pp.empresaId as Empresa, pp.posicionId as IdPosicion, sum(unidades * if(existe, -1, 1)) as total, min(pp.asigned) as Fecha")
         .where("pp.empresaid  = :idEmpresa", {idEmpresa})
         .andWhere("pp.lote  = :lote", {lote})
         .groupBy("pp.posicionId")
+        .orderBy("Fecha","ASC")
         .execute()
 
     return results

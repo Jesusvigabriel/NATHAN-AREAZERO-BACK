@@ -39,6 +39,7 @@ import auditoriaRoutes from './routes/auditoria.routes';
 import emailServersRoutes from './routes/emailServers.routes';
 import emailTemplatesRoutes from './routes/emailTemplates.routes';
 import emailProcesoConfigRoutes from './routes/emailProcesoConfig.routes';
+import reportesRoutes from './routes/reportes.routes';
 
 import tiendaNubeRoutes from "./api/tiendanube/routes/tiendanube.routes";
 import yiqiRoutes from "./api/yiqi/routes/yiqi.routes";
@@ -88,6 +89,7 @@ app.use(emailServersRoutes)
 app.use(emailTemplatesRoutes)
 app.use(emailProcesoConfigRoutes)
 app.use(auditoriaRoutes)
+app.use(reportesRoutes)
 
 
 // Rutas de Integraciones con APIS

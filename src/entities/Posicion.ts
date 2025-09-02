@@ -1,4 +1,5 @@
-import {Entity, Column, PrimaryGeneratedColumn} from "typeorm"
+import {Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn} from "typeorm"
+import { Categoria } from "./Categoria"
 
 @Entity("posiciones")
 
@@ -26,4 +27,8 @@ export class Posicion {
 
     @Column({name: "categoria_permitida_id", type: "int", nullable: true})
     CategoriaPermitidaId: number
+
+    @ManyToOne(() => Categoria, categoria => categoria.Posiciones, {nullable: true})
+    @JoinColumn({name: "categoria_permitida_id"})
+    CategoriaPermitida?: Categoria
 }

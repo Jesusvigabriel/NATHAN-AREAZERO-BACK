@@ -4,6 +4,7 @@ import { OrdenDetalle } from "./OrdenDetalle"
 import { Posicion } from "./Posicion"
 import { PosicionProducto } from "./PosicionProducto"
 import {ProductoPosicionado} from '../interfaces/ProductoPosicionado'
+import { Categoria } from "./Categoria"
 
 @Entity("productos")
 
@@ -106,6 +107,13 @@ export class Producto {
 
     @Column()
     Precio: number
+
+    @Column({name: "categoria_id", type: "int", nullable: true})
+    CategoriaId: number
+
+    @ManyToOne(() => Categoria, categoria => categoria.Productos)
+    @JoinColumn({name: "categoria_id"})
+    Categoria?: Categoria
    
     @Column({name: "volumen"})
     Volumen: number
