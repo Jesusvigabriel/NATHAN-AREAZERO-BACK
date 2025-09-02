@@ -25,6 +25,8 @@ import { stringify } from "querystring"
 import { productosHistorico_insert_DALC } from "./productosHistorico.dalc"
 import { PosicionMetrica } from "../entities/PosicionMetrica"
 import { Pallet } from "../entities/Pallet"
+import { auditoria_insert_DALC } from "./auditoria.dalc"
+const { logger } = require('../helpers/logger')
 
 const obtenerFactor = (posicion?: Posicion) => 1 + (posicion?.FactorDesperdicio ?? 0)
 
@@ -36,8 +38,25 @@ const calcularOcupacion = (producto: Producto | undefined, unidades: number, fac
 }
 
 const actualizarCapacidad = async (posicion: Posicion, deltaVolumen: number, deltaPeso: number, manager?: EntityManager) => {
-    const nuevaCapacidadVolumen = (posicion.VolumenDisponibleCm3 ?? 0) + deltaVolumen
-    const nuevaCapacidadPeso = (posicion.PesoDisponibleKg ?? 0) + deltaPeso
+    let nuevaCapacidadVolumen = (posicion.VolumenDisponibleCm3 ?? 0) + deltaVolumen
+    let nuevaCapacidadPeso = (posicion.PesoDisponibleKg ?? 0) + deltaPeso
+
+    const capacidadMaxVolumen = posicion.CapacidadTotalVolumenCm3 ?? nuevaCapacidadVolumen
+    const capacidadMaxPeso = posicion.CapacidadTotalPesoKg ?? nuevaCapacidadPeso
+
+    if (nuevaCapacidadVolumen > capacidadMaxVolumen) {
+        logger.warn(`Overflow de volumen en la posición ${posicion.Id}`)
+        await auditoria_insert_DALC("Posicion", posicion.Id, "OVERFLOW_CAPACIDAD_VOLUMEN", "system", new Date())
+        nuevaCapacidadVolumen = capacidadMaxVolumen
+    }
+    if (nuevaCapacidadPeso > capacidadMaxPeso) {
+        logger.warn(`Overflow de peso en la posición ${posicion.Id}`)
+        await auditoria_insert_DALC("Posicion", posicion.Id, "OVERFLOW_CAPACIDAD_PESO", "system", new Date())
+        nuevaCapacidadPeso = capacidadMaxPeso
+    }
+
+    nuevaCapacidadVolumen = Math.max(0, nuevaCapacidadVolumen)
+    nuevaCapacidadPeso = Math.max(0, nuevaCapacidadPeso)
     if (manager) {
         await manager.update(Posicion, posicion.Id, {
             VolumenDisponibleCm3: nuevaCapacidadVolumen,
