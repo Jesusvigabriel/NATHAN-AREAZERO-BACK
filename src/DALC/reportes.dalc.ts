@@ -7,18 +7,30 @@ export interface RotacionItem {
     Movimientos: number
 }
 
-export const reporte_rotacion_DALC = async (idEmpresa: number): Promise<RotacionItem[]> => {
-    const movimientos = await createQueryBuilder("pos_prod", "pp")
-        .select("pp.productId as IdProducto, SUM(IF(pp.existe=0, pp.unidades, 0)) as Entradas, SUM(IF(pp.existe=1, pp.unidades, 0)) as Salidas")
+export const reporte_rotacion_DALC = async (idEmpresa: number, zona?: string): Promise<RotacionItem[]> => {
+    const qbMov = createQueryBuilder("pos_prod", "pp")
+        .select("pp.productId as IdProducto, SUM(IF(pp.existe=0, pp.unidades, 0)) as Entradas, SUM(IF(pp.existe=1, pp.unidades,0)) as Salidas")
         .where("pp.empresaId = :idEmpresa", { idEmpresa })
-        .groupBy("pp.productId")
-        .getRawMany()
 
-    const historicos = await createQueryBuilder("historico_pos_prod", "hp")
+    if (zona) {
+        qbMov.innerJoin("zona_posicion", "zp", "zp.posicionId = pp.posicionId")
+        qbMov.innerJoin("zonas", "z", "z.id = zp.zonaId")
+        qbMov.andWhere("z.descripcion = :zona", { zona })
+    }
+
+    const movimientos = await qbMov.groupBy("pp.productId").getRawMany()
+
+    const qbHist = createQueryBuilder("historico_pos_prod", "hp")
         .select("hp.IdProducto as IdProducto, COUNT(*) as Movimientos")
         .where("hp.empresaId = :idEmpresa", { idEmpresa })
-        .groupBy("hp.IdProducto")
-        .getRawMany()
+
+    if (zona) {
+        qbHist.innerJoin("zona_posicion", "zp", "zp.posicionId = hp.IdPosicion")
+        qbHist.innerJoin("zonas", "z", "z.id = zp.zonaId")
+        qbHist.andWhere("z.descripcion = :zona", { zona })
+    }
+
+    const historicos = await qbHist.groupBy("hp.IdProducto").getRawMany()
 
     const map: Record<number, RotacionItem> = {}
     for (const m of movimientos) {
