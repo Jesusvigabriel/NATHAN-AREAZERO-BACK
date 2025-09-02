@@ -1,0 +1,14 @@
+INSTRUCCIONES PARA ARREGLAR emailServers.controller.ts
+
+En la función test (línea 217), cambiar:
+
+ANTES:
+        if (auth.idEmpresa !== empresaId) {
+
+DESPUÉS:
+        // Verificar autorización según el tipo de autenticación
+        const isBasicAuth = req.headers.authorization?.startsWith('Basic ');
+        
+        if (!isBasicAuth && auth.idEmpresa !== empresaId) {
+
+Esto permitirá que Basic Auth pueda probar servidores de cualquier empresa.

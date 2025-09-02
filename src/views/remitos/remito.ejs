@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Remito</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+  <style>
+    /* ====== Ajustes de impresión A4 ====== */
+    @page { size: A4; margin: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: Arial, sans-serif; color: #000; margin: 0; padding: 0;
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+      font-size: 14.5px; line-height: 1.52;
+    }
+
+    /* Contenedor de página A4 */
+    .page {
+      width: 210mm; height: 297mm; box-sizing: border-box; background: #fff;
+      padding: 12mm 8mm 6mm 8mm; display: flex; flex-direction: column; gap: 4mm;
+    }
+
+    /* Títulos de secciones */
+    .header-section-title {
+      background-color: #e0e0e0; border: 1px solid #000; font-weight: 700;
+      font-size: 12.1px; padding: 2.4px 4.8px; line-height: 1; white-space: nowrap;
+    }
+
+    .section-box { border: 1px solid #000; }
+    .section-content {
+      padding: 3.6px 6.1px; min-height: 29mm; max-height: 29mm;
+      display: flex; flex-direction: column; gap: 1.2px; overflow: hidden;
+    }
+    .section-content p { margin: 0; font-size: 10.9px; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .section-label { font-weight: 700; margin-right: 3px; }
+
+    /* Caja R */
+    .r-box { width: 33.9px; height: 33.9px; border: 1px solid #000; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 26.6px; }
+    .orig { display: inline-block; border: 1px solid #000; padding: 2.4px 12.1px; font-weight: 700; font-size: 12.1px; }
+
+    /* Tabla detalle (exactamente 16 filas visibles) */
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    th, td { border: 1px solid #000; padding: 2.4px 4.8px; font-size: 10px; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    th { background: #e0e0e0; height: 19.4px; }
+    .row { height: 20.6px; } /* altura por fila x 16 ≈ 330px */
+
+    /* Contenedor del detalle con altura fija para 16 filas + cabecera + footer */
+    .items-table-container { border: 1px solid #000; display: flex; flex-direction: column; gap: 2.4px; padding: 2.4px; }
+    .items-table-wrap { flex: 1 0 auto; max-height: 351px; overflow: hidden; }
+
+    /* Pie: observaciones + condiciones (altura controlada) */
+    .obs-box { border: 1px solid #000; min-height: 31.5mm; max-height: 31.5mm; padding: 3.6px 6.1px; box-sizing: border-box; }
+    .obs-box p { margin: 0; font-size: 12.1px; line-height: 1.4; }
+
+    /* Evitar cortes */
+    .avoid-break { page-break-inside: avoid; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <!-- Encabezado principal -->
+    <div class="avoid-break">
+      <div class="flex justify-between items-start">
+        <!-- Logo + datos empresa -->
+        <div class="w-1/3">
+          <div class="mb-2 flex items-center justify-center" style="height: 22mm;">
+            <% if (typeof logoBase64 !== 'undefined' && logoBase64) { %>
+              <img id="logo-img" src="<%= logoBase64 %>" alt="Logo" style="max-width: 60mm; max-height: 20mm; object-fit: contain;" />
+            <% } else { %>
+              <div style="width: 60mm; height: 20mm; display:flex; align-items:center; justify-content:center; border:1px solid #ccc; background:#f7f7f7; font-size:11px; color:#666;">Sin logo</div>
+            <% } %>
+          </div>
+          <div class="font-bold text-[11px]"><%= empresa.RazonSocial || empresa.Nombre || 'MURESCO' %></div>
+          <div class="text-[10px] leading-tight">
+            <p><%= empresa.DireccionOficina || 'Av. Olimpo 1101 (B1839DKG)' %></p>
+            <p>El Jagüel - Bs. As. - Argentina</p>
+            <p>TEL. 011-5263-9994</p>
+            <% let cuitFull = empresa.Cuit || '30-52252008-6';
+   let cuitParts = cuitFull.split(' - ');
+%>
+<p>www.muresco.com | CUIT: <%= cuitParts[0] %></p>
+<% if (cuitParts.length > 1) { %>
+  <p><%= cuitParts.slice(1).join(' - ') %></p>
+<% } %>
+          </div>
+        </div>
+
+        <!-- Caja R -->
+        <div class="w-1/3 flex flex-col items-center">
+          <div class="r-box">R</div>
+          <div class="text-[10px] mt-1">Documento no válido como factura</div>
+        </div>
+
+        <!-- Bloque Remito/Fecha/Hoja -->
+        <div class="w-1/3 flex flex-col items-end">
+          <div class="flex items-center mb-1">
+            <div class="text-[10px] mr-2 font-semibold">Remito:</div>
+            <div class="border border-black px-2 py-1 text-[10px] min-w-[90px] text-center whitespace-nowrap"><%= remito.RemitoNumber || remito.Id %></div>
+          </div>
+          <div class="flex items-center mb-1">
+            <div class="text-[10px] mr-2 font-semibold">Fecha:</div>
+            <div class="border border-black px-2 py-1 text-[10px] min-w-[90px] text-center"><%= new Date(remito.Fecha).toLocaleDateString('es-AR') %></div>
+          </div>
+          <div class="flex items-center">
+            <div class="text-[10px] mr-2 font-semibold">Hoja:</div>
+            <div class="border border-black px-2 py-1 text-[10px] min-w-[90px] text-center"><%= currentPage || 1 %> de <%= totalPages || 1 %></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cliente / Entrega -->
+    <div class="grid grid-cols-2 gap-2 avoid-break">
+      <div class="section-box">
+        <div class="header-section-title">Cliente</div>
+        <div class="section-content">
+          <p><span class="section-label">Razón Social:</span><%= orden.Destino?.Nombre || 'No especificado' %></p>
+          <p><span class="section-label">Dirección:</span><%= orden.Destino?.Domicilio || 'No especificada' %></p>
+          <p><span class="section-label">Localidad:</span><%= orden.Destino?.CodigoPostal || 'No especificada' %></p>
+          <p><span class="section-label">Código Postal:</span><%= orden.Destino?.CodigoPostal || 'No especificado' %></p>
+          <p><span class="section-label">CUIT:</span><%= orden.CuitIva || 'No especificado' %></p>
+          <p><span class="section-label">Cliente Nro:</span><%= orden.Destino?.Nombre || 'No especificado' %></p>
+        </div>
+      </div>
+      <div class="section-box">
+        <div class="header-section-title">Entrega</div>
+        <div class="section-content">
+          <p><span class="section-label">Domicilio:</span><%= orden.DomicilioEntrega || 'No especificada' %></p>
+          <p><span class="section-label">Localidad:</span><%= orden.CodigoPostalEntrega || 'No especificada' %></p>
+          <p><span class="section-label">CP:</span><%= orden.CodigoPostalEntrega || 'No especificado' %></p>
+          <p><span class="section-label">Provincia:</span><%= orden.ProvinciaEntrega || 'Buenos Aires' %></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Solicitud / Transporte -->
+    <div class="grid grid-cols-2 gap-2 avoid-break">
+      <div class="section-box">
+        <div class="header-section-title">Solicitud de Entrega</div>
+        <div class="section-content">
+          <p><span class="section-label">Nro. Solicitud:</span><%= orden.Numero || 'No especificado' %></p>
+          <p><span class="section-label">Tipo Solicitud:</span><%= orden.Tipo || 'No especificado' %></p>
+          <p><span class="section-label">Nro. Pedidos:</span><%= orden.NroPedidos || 'No especificado' %></p>
+          <p><span class="section-label">Bultos:</span><%= orden.Bultos ?? 'No especificados' %></p>
+          <p><span class="section-label">Kilos:</span><%= (orden.Kilos != null ? orden.Kilos : 'No especificado') %></p>
+        </div>
+      </div>
+      <div class="section-box">
+        <div class="header-section-title">Transportista</div>
+        <div class="section-content">
+          <p><span class="section-label">Transportista:</span><%= orden.Transporte || 'A confirmar' %></p>
+          <p><span class="section-label">CUIT:</span><%= orden.CuitIvaTransporte || 'No especificado' %></p>
+          <p><span class="section-label">Domicilio:</span><%= orden.DomicilioTransporte || 'No especificado' %></p>
+          <p><span class="section-label">Localidad:</span><%= orden.CodigoPostalTransporte || 'No especificada' %></p>
+          <p><span class="section-label">Código Postal:</span><%= orden.CodigoPostalTransporte || 'No especificado' %></p>
+          <p><span class="section-label">N° de Entrega:</span><%= remito.Id || 'No especificado' %></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Detalle (exactamente 16 filas) -->
+    <div class="items-table-container avoid-break">
+      <div class="header-section-title">DETALLE</div>
+      <div class="items-table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th class="w-[15%] text-center">Código</th>
+              <th class="w-[12%] text-left pl-2">Artículo</th>
+              <th class="w-[30%] text-left pl-2">Descripción</th>
+              <th class="w-[15%] text-center">Partida</th>
+              <th class="w-[24%] text-center">Despacho Plaza</th>
+              <th class="w-[10%] text-center">Cant.</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% const maxItemsPerPage = 14;
+               const safeItems = Array.isArray(items) ? items : [];
+               const pageItems = (pageItemsData && Array.isArray(pageItemsData) ? pageItemsData : safeItems).slice(0, maxItemsPerPage);
+               pageItems.forEach((item) => {
+                 const codigo = item.Barcode || 'N/A';
+                 const articulo = item.CodeEmpresa || item.Articulo || 'N/A';
+            %>
+              <tr class="row">
+                <td class="text-center font-mono"><%= codigo %></td>
+                <td class="text-left pl-2"><%= articulo %></td>
+<td class="text-left pl-2"><%= item.descripcion || '' %></td>
+                <td class="text-center"><%= item.Partida || 'N/A' %></td>
+                <td class="text-center" style="font-family: 'Courier New', monospace; font-size: 12.1px; letter-spacing: 0.5px; max-width: 120px; overflow: visible; text-overflow: unset; white-space: pre;"> <%= item.DespachoPlaza || 'N/A' %></td>
+                <td class="text-right pr-2"><%= (item.Cantidad != null ? Number(item.Cantidad).toFixed(0) : '') %></td>
+              </tr>
+            <% });
+               // Rellenar con filas vacías hasta tener 14 filas (dejando espacio para valor asegurado)
+               const emptyRowsCount = Math.max(0, 14 - pageItems.length);
+               for (let i = 0; i < emptyRowsCount; i++) { %>
+              <tr class="row">
+                <td>&nbsp;</td>
+                <td>&nbsp;</td>
+                <td>&nbsp;</td>
+                <td>&nbsp;</td>
+                <td>&nbsp;</td>
+                <td>&nbsp;</td>
+              </tr>
+            <% } %>
+            
+          </tbody>
+        <tfoot>
+          <tr style="border-top: 2px solid #000;">
+            <td colspan="6" style="padding: 0; border-left: 1px solid #000; border-right: 1px solid #000; border-bottom: 1.5px solid #000; background-color: #f0f0f0;">
+              <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; min-height: 28px; font-weight: bold; padding: 0 12px;">
+                <span>Valor asegurado:</span>
+                <span style="font-family: 'Courier New', monospace; font-size: 12.1px; letter-spacing: 0.5px;">$<%= (orden.ValorDeclarado ? Number(orden.ValorDeclarado).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00') %></span>
+              </div>
+            </td>
+          </tr>
+        </tfoot>
+        </table>
+      </div>
+    </div>
+
+    <!-- Pie -->
+    <div class="avoid-break">
+      <div class="grid grid-cols-2 gap-2 mb-2">
+        <div class="obs-box">
+          <p class="font-bold">OBSERVACIONES:</p>
+          <p><%= orden.Observaciones || 'Ninguna' %></p>
+        </div>
+        <div class="obs-box">
+          <p class="font-bold">CONDICIONES DE ENTREGA:</p>
+          <% if (orden.ObservacionesLugarEntrega) {
+               const condiciones = String(orden.ObservacionesLugarEntrega)
+                 .replace('Horario Entrega', 'Horario')
+                 .replace('Horario de Entrega', 'Horario'); %>
+            <p><%= condiciones %></p>
+          <% } else { %>
+            <p>Sin condiciones especiales</p>
+          <% } %>
+        </div>
+      </div>
+
+      <div class="flex justify-between items-end text-[11px]">
+        <div class="w-1/2 pr-2">
+          <p class="mb-1"><strong>Orden de compra: <%= orden.OrdenCompra || 'No especificada' %></strong></p>
+          <p class="mb-1">No se aceptan devoluciones sin previo aviso. Se acuerda la competencia de la Justicia Nacional en lo Comercial de la Capital Federal.</p>
+        </div>
+        <div class="w-1/2 flex flex-col items-end text-right">
+          <p class="mb-1"><strong>C.A.I Nro:</strong> <%= remito.PuntoVenta?.Cai || remito.Cai || '' %></p>
+          <p class="mb-1"><strong>Vencimiento:</strong> <%= remito.PuntoVenta?.CaiVencimiento ? new Date(remito.PuntoVenta.CaiVencimiento).toLocaleDateString('es-AR') : (remito.CaiVencimiento ? new Date(remito.CaiVencimiento).toLocaleDateString('es-AR') : '') %></p>
+          <svg id="barcode" style="width: 100%; height: 34px;"></svg>
+          <% if (remito.BarcodeValue) { %>
+            <div class="mt-1 text-[10px]"><%= remito.BarcodeValue %></div>
+          <% } %>
+        </div>
+      </div>
+
+      <div class="text-center mt-3">
+        <span class="orig">ORIGINAL</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Generar código de barras si hay valor
+    (function () {
+      try {
+        var barcodeValue = "<%= remito.BarcodeValue || '' %>";
+        if (barcodeValue && typeof JsBarcode === 'function') {
+          JsBarcode('#barcode', barcodeValue, {
+            format: 'CODE128', displayValue: false, height: 34, width: 1.4,
+            margin: 0, background: '#ffffff', lineColor: '#000000',
+          });
+        }
+      } catch (e) { console.error('Error generando barcode:', e); }
+    })();
+  </script>
+</body>
+</html>
