@@ -13,11 +13,25 @@ Authorization: {{credenciales}}
 POST {{pathUrl}}/posiciones/newOne/P-03
 Authorization: {{credenciales}}
 
-### Eliminar una posicion 
+### Eliminar una posicion
 DELETE {{pathUrl}}/posicion/deleteOneById/3729
 Authorization: {{credenciales}}
 
 ### Obtiene todas las posiciones
 GET {{pathUrl}}/posiciones/getAll
 Authorization: {{credenciales}}
+
+### Actualiza una posición existente
+PUT {{pathUrl}}/posiciones/1769
+Authorization: {{credenciales}}
+Content-Type: application/json
+
+{
+  "UsuarioInventario": "Leo Lob",
+  "FechaInventario": "2021-07-01",
+  "CapacidadPesoKg": 1000,
+  "CapacidadVolumenCm3": 500000,
+  "FactorDesperdicio": 0.1,
+  "CategoriaPermitidaId": 1
+}
 
