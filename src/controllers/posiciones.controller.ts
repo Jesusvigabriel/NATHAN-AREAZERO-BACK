@@ -1,5 +1,5 @@
 import {Request, Response} from "express"
-import { getConnection } from "typeorm"
+import { getConnection, getRepository } from "typeorm"
 import {
     posiciones_getAll_DALC,
     posicion_getByNombre_DALC,
@@ -18,6 +18,7 @@ import {
     fechaPos_edit_DALC,
     posicion_getContent_ByIdProducto_DALC,
     posicion_getOcupacion_DALC,
+    posiciones_getOcupacionResumen_DALC,
     getAllPosicionesByIdEmpresa_DALC,
     posiciones_getByIdProdAndLote_DALC,
     posiciones_getByLote_DALC,
@@ -27,6 +28,7 @@ import {
     posiciones_getHeatmap_DALC
 } from '../DALC/posiciones.dalc'
 import { HistoricoPosiciones } from "../entities/HistoricoPosiciones"
+import { Posicion } from "../entities/Posicion"
 
 export const getPosicionesConPosicionadoNegativo = async (req: Request, res: Response): Promise<Response> => {
 
@@ -272,6 +274,61 @@ export const getOcupacionById = async (req: Request, res: Response): Promise<Res
                 "",
                 err.message || "Error interno"
             )
+        )
+    }
+}
+
+export const getOcupacionResumen = async (req: Request, res: Response): Promise<Response> => {
+    const api = require('lsi-util-node/API')
+    const idEmpresa = req.query.empresa ? Number(req.query.empresa) : undefined
+    const zona = req.query.zona ? String(req.query.zona) : undefined
+
+    if (req.query.empresa && isNaN(idEmpresa!)) {
+        return res.status(400).json(api.getFormatedResponse('', 'Parámetro empresa inválido'))
+    }
+
+    try {
+        const [ocupacion, capacidad] = await Promise.all([
+            posiciones_getOcupacionResumen_DALC({ idEmpresa, zona }),
+            (async () => {
+                const qb = getRepository(Posicion)
+                    .createQueryBuilder('p')
+                    .select('COALESCE(SUM(p.CapacidadTotalPesoKg), 0)', 'peso')
+                    .addSelect('COALESCE(SUM(p.CapacidadTotalVolumenCm3), 0)', 'volumen')
+                    .leftJoin('zona_posicion', 'zp', 'zp.posicionId = p.Id')
+                    .leftJoin('zonas', 'z', 'z.id = zp.zonaId')
+
+                if (zona) {
+                    qb.where('z.descripcion = :zona', { zona })
+                } else {
+                    qb.addSelect('z.descripcion', 'zona').groupBy('z.descripcion')
+                }
+
+                return qb.getRawMany()
+            })(),
+        ])
+
+        const capacidadMap: Record<string, { peso: number; volumen: number }> = {}
+        for (const c of capacidad) {
+            capacidadMap[c.zona ?? ''] = {
+                peso: Number(c.peso),
+                volumen: Number(c.volumen),
+            }
+        }
+
+        const resultado = ocupacion.map((o) => {
+            const cap = capacidadMap[o.Zona ?? ''] || { peso: 0, volumen: 0 }
+            return {
+                ...o,
+                PorcentajePesoUsado: cap.peso ? o.PesoOcupadoKg / cap.peso : 0,
+                PorcentajeVolumenUsado: cap.volumen ? o.VolumenOcupadoCm3 / cap.volumen : 0,
+            }
+        })
+
+        return res.json(api.getFormatedResponse(resultado))
+    } catch (err: any) {
+        return res.status(500).json(
+            api.getFormatedResponse('', err.message || 'Error interno')
         )
     }
 }

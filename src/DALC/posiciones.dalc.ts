@@ -253,6 +253,49 @@ export const posicion_getOcupacion_DALC = async (
     }
 }
 
+export interface OcupacionResumen {
+    IdEmpresa: number
+    Zona: string | null
+    PesoOcupadoKg: number
+    VolumenOcupadoCm3: number
+}
+
+export const posiciones_getOcupacionResumen_DALC = async (
+    filtros: { idEmpresa?: number; zona?: string } = {}
+): Promise<OcupacionResumen[]> => {
+    const qb = createQueryBuilder("pos_prod", "pp")
+        .select("pp.empresaId", "IdEmpresa")
+        .addSelect("z.descripcion", "Zona")
+        .addSelect(
+            "COALESCE(SUM(pp.pesoOcupadoKg * IF(pp.existe, -1, 1)), 0)",
+            "PesoOcupadoKg"
+        )
+        .addSelect(
+            "COALESCE(SUM(pp.volumenOcupadoCm3 * IF(pp.existe, -1, 1)), 0)",
+            "VolumenOcupadoCm3"
+        )
+        .leftJoin("zona_posicion", "zp", "zp.posicionId = pp.posicionId")
+        .leftJoin("zonas", "z", "z.id = zp.zonaId")
+        .groupBy("pp.empresaId")
+        .addGroupBy("z.descripcion")
+
+    if (filtros.idEmpresa) {
+        qb.andWhere("pp.empresaId = :idEmpresa", { idEmpresa: filtros.idEmpresa })
+    }
+
+    if (filtros.zona) {
+        qb.andWhere("z.descripcion = :zona", { zona: filtros.zona })
+    }
+
+    const result = await qb.getRawMany()
+    return result.map((r: any) => ({
+        IdEmpresa: Number(r.IdEmpresa),
+        Zona: r.Zona ?? null,
+        PesoOcupadoKg: Number(r.PesoOcupadoKg),
+        VolumenOcupadoCm3: Number(r.VolumenOcupadoCm3),
+    }))
+}
+
 export const posicion_getByIdProd_DALC = async (id: number, idEmpresa: number) => {
     const results = await getRepository(PosicionProducto).findOne(
         {where: {IdProducto: id, IdEmpresa: idEmpresa }
