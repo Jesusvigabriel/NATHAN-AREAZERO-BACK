@@ -212,8 +212,40 @@ export const posicion_getById_DALC = async (id: number) => {
     return results
 }
 
+export interface OcupacionPosicion {
+    PesoOcupadoKg: number
+    VolumenOcupadoCm3: number
+}
+
+export const posicion_getOcupacion_DALC = async (
+    idPosicion: number,
+    filtros: { idEmpresa?: number; zona?: string } = {}
+): Promise<OcupacionPosicion> => {
+    const qb = createQueryBuilder("pos_prod", "pp")
+        .select([
+            "COALESCE(SUM(pp.pesoOcupadoKg * IF(pp.existe, -1, 1)), 0) AS peso",
+            "COALESCE(SUM(pp.volumenOcupadoCm3 * IF(pp.existe, -1, 1)), 0) AS volumen",
+        ])
+        .where("pp.posicionId = :idPosicion", { idPosicion })
+
+    if (filtros.idEmpresa) {
+        qb.andWhere("pp.empresaId = :idEmpresa", { idEmpresa: filtros.idEmpresa })
+    }
+
+    if (filtros.zona) {
+        qb.innerJoin("posiciones", "pos", "pos.id = pp.posicionId")
+        qb.andWhere("pos.descripcion LIKE :zona", { zona: `${filtros.zona}%` })
+    }
+
+    const result = await qb.getRawOne()
+    return {
+        PesoOcupadoKg: Number(result?.peso ?? 0),
+        VolumenOcupadoCm3: Number(result?.volumen ?? 0),
+    }
+}
+
 export const posicion_getByIdProd_DALC = async (id: number, idEmpresa: number) => {
-    const results = await getRepository(PosicionProducto).findOne( 
+    const results = await getRepository(PosicionProducto).findOne(
         {where: {IdProducto: id, IdEmpresa: idEmpresa }
         ,
         order: {Id:'DESC'}})

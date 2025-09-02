@@ -17,6 +17,7 @@ import {
     detallePosicion_getByIdProd_DALC,
     fechaPos_edit_DALC,
     posicion_getContent_ByIdProducto_DALC,
+    posicion_getOcupacion_DALC,
     getAllPosicionesByIdEmpresa_DALC,
     posiciones_getByIdProdAndLote_DALC,
     posiciones_getByLote_DALC,
@@ -171,6 +172,38 @@ export const getContentByID = async (req: Request, res: Response): Promise <Resp
         return res.json(require("lsi-util-node/API").getFormatedResponse("", "Id Posición inexistente"))
     }
     return res.json(require("lsi-util-node/API").getFormatedResponse(results))
+}
+
+export const getOcupacionById = async (req: Request, res: Response): Promise<Response> => {
+    try {
+        const idPosicion = Number(req.params.id)
+        if (isNaN(idPosicion)) {
+            return res.status(400).json(
+                require("lsi-util-node/API").getFormatedResponse("", "Parámetro id inválido")
+            )
+        }
+
+        const idEmpresa = req.query.empresa
+            ? Number(req.query.empresa)
+            : undefined
+        const zona = req.query.zona ? String(req.query.zona) : undefined
+
+        const ocupacion = await posicion_getOcupacion_DALC(idPosicion, {
+            idEmpresa,
+            zona,
+        })
+
+        return res.json(
+            require("lsi-util-node/API").getFormatedResponse(ocupacion)
+        )
+    } catch (err: any) {
+        return res.status(500).json(
+            require("lsi-util-node/API").getFormatedResponse(
+                "",
+                err.message || "Error interno"
+            )
+        )
+    }
 }
 
 export const getAllPosicionesByIdEmpresa = async (req: Request, res: Response): Promise <Response> => {
