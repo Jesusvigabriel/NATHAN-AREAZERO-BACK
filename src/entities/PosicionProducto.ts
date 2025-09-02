@@ -35,4 +35,10 @@ export class PosicionProducto {
     
     @Column({name: "usuarioNombre"})
     UsuarioNombre: string
+
+    @Column({name: "volumenOcupadoCm3", type: "float", nullable: true})
+    VolumenOcupadoCm3: number
+
+    @Column({name: "pesoOcupadoKg", type: "float", nullable: true})
+    PesoOcupadoKg: number
 }
