@@ -189,4 +189,12 @@ export class EmpresaConfiguracion {
     @Column({name: "contacto_deposito"})
     ContactoDeposito: string
 
+    @Column({name: "umbral_ocupacion", type: "float", nullable: true})
+    UmbralOcupacion?: number
+
+    @Column({name: "umbral_sobrepeso", type: "float", nullable: true})
+    UmbralSobrepeso?: number
+
+    @Column({name: "umbral_falta_stock", type: "int", nullable: true})
+    UmbralFaltaStock?: number
 }

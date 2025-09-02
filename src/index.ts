@@ -41,6 +41,8 @@ import emailTemplatesRoutes from './routes/emailTemplates.routes';
 import emailProcesoConfigRoutes from './routes/emailProcesoConfig.routes';
 import reportesRoutes from './routes/reportes.routes';
 import zonasRoutes from './routes/zonas.routes';
+import dashboardRoutes from './routes/dashboard.routes';
+import { monitorService } from './services/monitor.service';
 
 import tiendaNubeRoutes from "./api/tiendanube/routes/tiendanube.routes";
 import yiqiRoutes from "./api/yiqi/routes/yiqi.routes";
@@ -92,6 +94,7 @@ app.use(emailProcesoConfigRoutes)
 app.use(auditoriaRoutes)
 app.use(reportesRoutes)
 app.use(zonasRoutes)
+app.use(dashboardRoutes)
 
 
 // Rutas de Integraciones con APIS
@@ -111,6 +114,7 @@ if (config.env==="D") {
         }
         console.log("Sirviendo en el puerto:",config.puerto, " - Base de datos:", config.database==="P" ? 'Productiva' : 'Desarrollo')
         swaggerDocs(app, config.puerto)
+        monitorService.start()
     })
 } else {
     const httpsServerOptions={
@@ -122,6 +126,7 @@ if (config.env==="D") {
     https.createServer(httpsServerOptions, app).listen(config.puerto, async () => {
         await conectaProduccionUniversal()
         console.log("HTTPS Sirviendo en el puerto "+config.puerto)
+        monitorService.start()
     })
 
 }
