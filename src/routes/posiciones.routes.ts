@@ -25,6 +25,7 @@ import {
     getPosicionesConDetalleByEmpresa,
     getAllByEmpresaConProductos,
     getOcupacionById,
+    getOcupacionResumen,
     getHeatmap
 } from "../controllers/posiciones.controller"
 
@@ -36,6 +37,7 @@ router.get(prefixAPI+"/posiciones/byNombre/:nombre", getPosicionesPorNombre)
 router.get(prefixAPI+"/posiciones/byId/:id", getByID)
 router.put(prefixAPI+"/posiciones/vaciar/:id", vaciarPosicion)
 router.get(prefixAPI+"/posiciones/getContentById/:id", getContentByID)
+router.get(prefixAPI+"/posiciones/ocupacion", getOcupacionResumen)
 router.get(prefixAPI+"/posiciones/:id/ocupacion", getOcupacionById)
 router.get(prefixAPI+"/posiciones/getAllPosicionesByIdEmpresa/:idEmpresa", getAllPosicionesByIdEmpresa)
 router.get(prefixAPI+"/posiciones/heatmap", getHeatmap)
