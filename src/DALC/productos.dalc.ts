@@ -24,6 +24,13 @@ import { response } from "express"
 import { stringify } from "querystring"
 import { productosHistorico_insert_DALC } from "./productosHistorico.dalc"
 
+const calcularOcupacion = (producto: Producto | undefined, unidades: number) => {
+    return {
+        VolumenOcupadoCm3: (producto?.Volumen ?? 0) * unidades,
+        PesoOcupadoKg: (producto?.Peso ?? 0) * unidades,
+    }
+}
+
 
 export const producto_posicionar_DALC = async (producto: Producto, posicion: Posicion, unidadesAPosicionar: number, idEmpresa: number) => {
 
@@ -40,6 +47,9 @@ export const producto_posicionar_DALC = async (producto: Producto, posicion: Pos
     entradaAPosicion.Unidades=unidadesAPosicionar
     entradaAPosicion.asigned= new Date()
     entradaAPosicion.Existe=0
+    const ocupacion1 = calcularOcupacion(producto, unidadesAPosicionar)
+    entradaAPosicion.VolumenOcupadoCm3 = ocupacion1.VolumenOcupadoCm3
+    entradaAPosicion.PesoOcupadoKg = ocupacion1.PesoOcupadoKg
 
     const registroEntrada=getRepository(PosicionProducto).create(entradaAPosicion)
     const result=await getRepository(PosicionProducto).save(registroEntrada)
@@ -78,6 +88,9 @@ export const reposicionar_producto_excel_DALC = async (producto: Producto, posic
             entradaAPosicion.asigned = new Date()
             entradaAPosicion.Existe=0
             entradaAPosicion.UsuarioNombre = usuario
+            const ocupacion2 = calcularOcupacion(producto, unidadesAPosicionar)
+            entradaAPosicion.VolumenOcupadoCm3 = ocupacion2.VolumenOcupadoCm3
+            entradaAPosicion.PesoOcupadoKg = ocupacion2.PesoOcupadoKg
         
             const registroEntrada=getRepository(PosicionProducto).create(entradaAPosicion)
             result=await getRepository(PosicionProducto).save(registroEntrada)
@@ -98,6 +111,9 @@ export const reposicionar_producto_excel_DALC = async (producto: Producto, posic
         entradaAPosicion.asigned= new Date()
         entradaAPosicion.Existe=0
         entradaAPosicion.UsuarioNombre = usuario
+        const ocupacion3 = calcularOcupacion(producto, unidadesAPosicionar)
+        entradaAPosicion.VolumenOcupadoCm3 = ocupacion3.VolumenOcupadoCm3
+        entradaAPosicion.PesoOcupadoKg = ocupacion3.PesoOcupadoKg
     
         const registroEntrada=getRepository(PosicionProducto).create(entradaAPosicion)
         result=await getRepository(PosicionProducto).save(registroEntrada)
@@ -113,6 +129,7 @@ export const reposicionar_producto_excel_DALC = async (producto: Producto, posic
 
 export const reposicionar_partida_excel_DALC = async (partida: Partida, posicion: Posicion, unidadesAPosicionar: number, usuario: string) => {
     let result
+    const productoInfo = await getRepository(Producto).findOne({where: {Id: partida.IdProducto, IdEmpresa: partida.IdEmpresa}})
     //Me fijo que posicion tiene el articulo previamente
     const pos = await posicion_getAllByIdProd_DALC(partida.Id, partida.IdEmpresa, posicion.Id)
 
@@ -154,6 +171,9 @@ export const reposicionar_partida_excel_DALC = async (partida: Partida, posicion
             entradaAPosicion.asigned = new Date()
             entradaAPosicion.Existe=0
             entradaAPosicion.UsuarioNombre = usuario
+            const ocupacionPartida = calcularOcupacion(productoInfo, unidadesAPosicionar)
+            entradaAPosicion.VolumenOcupadoCm3 = ocupacionPartida.VolumenOcupadoCm3
+            entradaAPosicion.PesoOcupadoKg = ocupacionPartida.PesoOcupadoKg
         
             const registroEntrada=getRepository(PosicionProducto).create(entradaAPosicion)
             result=await getRepository(PosicionProducto).save(registroEntrada)
@@ -174,6 +194,9 @@ export const reposicionar_partida_excel_DALC = async (partida: Partida, posicion
         entradaAPosicion.asigned= new Date()
         entradaAPosicion.Existe=0
         entradaAPosicion.UsuarioNombre = usuario
+        const ocupacionPartida2 = calcularOcupacion(productoInfo, unidadesAPosicionar)
+        entradaAPosicion.VolumenOcupadoCm3 = ocupacionPartida2.VolumenOcupadoCm3
+        entradaAPosicion.PesoOcupadoKg = ocupacionPartida2.PesoOcupadoKg
     
         const registroEntrada=getRepository(PosicionProducto).create(entradaAPosicion)
         result=await getRepository(PosicionProducto).save(registroEntrada)
@@ -202,6 +225,9 @@ export const producto_desposicionar_DALC = async (producto: Producto, posicion: 
         salidaDePosicion.Unidades=unidadesADesposicionar
         salidaDePosicion.removed = new Date()
         salidaDePosicion.Existe=1
+        const ocupacionSalida = calcularOcupacion(producto, unidadesADesposicionar)
+        salidaDePosicion.VolumenOcupadoCm3 = ocupacionSalida.VolumenOcupadoCm3
+        salidaDePosicion.PesoOcupadoKg = ocupacionSalida.PesoOcupadoKg
 
 
         const registroSalida=getRepository(PosicionProducto).create(salidaDePosicion)
@@ -226,6 +252,8 @@ export const producto_desposicionar_DALC = async (producto: Producto, posicion: 
 
 export const producto_desposicionar_paqueteria_DALC = async (producto: number, posicion: number, unidadesADesposicionar: number, idEmpresa: number) => {
 
+    const productoInfo = await getRepository(Producto).findOne({where: {Id: producto, IdEmpresa: idEmpresa}})
+
     const salidaDePosicion=new PosicionProducto()
     salidaDePosicion.IdEmpresa=idEmpresa
     salidaDePosicion.IdPosicion=posicion
@@ -233,6 +261,9 @@ export const producto_desposicionar_paqueteria_DALC = async (producto: number, p
     salidaDePosicion.Unidades=unidadesADesposicionar
     salidaDePosicion.removed = new Date()
     salidaDePosicion.Existe=1
+    const ocupacionPaqueteria = calcularOcupacion(productoInfo, unidadesADesposicionar)
+    salidaDePosicion.VolumenOcupadoCm3 = ocupacionPaqueteria.VolumenOcupadoCm3
+    salidaDePosicion.PesoOcupadoKg = ocupacionPaqueteria.PesoOcupadoKg
 
     const registroSalida=getRepository(PosicionProducto).create(salidaDePosicion)
     const result=await getRepository(PosicionProducto).save(registroSalida)
@@ -247,6 +278,7 @@ export const producto_desposicionar_paqueteria_DALC = async (producto: number, p
 export const producto_desposicionar_Lote_DALC = async (posicion: number, unidadesADesposicionar: number, idEmpresa: number, idProducto: number, lote: string, usuario: string) => {
 
     const embarque = await getRepository(Lote).findOne({where: {Lote: lote}})
+    const productoInfo = await getRepository(Producto).findOne({where: {Id: idProducto, IdEmpresa: idEmpresa}})
     const salidaDePosicion=new PosicionProducto()
     salidaDePosicion.IdEmpresa=idEmpresa
     salidaDePosicion.IdPosicion=posicion
@@ -259,6 +291,9 @@ export const producto_desposicionar_Lote_DALC = async (posicion: number, unidade
     salidaDePosicion.Unidades=unidadesADesposicionar
     salidaDePosicion.removed = new Date()
     salidaDePosicion.Existe=1
+    const ocupacionLote = calcularOcupacion(productoInfo, unidadesADesposicionar)
+    salidaDePosicion.VolumenOcupadoCm3 = ocupacionLote.VolumenOcupadoCm3
+    salidaDePosicion.PesoOcupadoKg = ocupacionLote.PesoOcupadoKg
 
     const registroSalida=getRepository(PosicionProducto).create(salidaDePosicion)
     const result=await getRepository(PosicionProducto).save(registroSalida)
@@ -325,6 +360,7 @@ export const actualizar_unidades_loteDetalle_DALC = async (body: any)=>{
     const horaActual: Date = new Date()
     const [year, month, day] = body.fecha.split('-').map(Number);
     const fechaDate: Date = new Date(year, month - 1, day, horaActual.getHours(), horaActual.getMinutes(), horaActual.getSeconds())
+    const productoInfo = await getRepository(Producto).findOne({where: {Id: body.idProducto, IdEmpresa: body.idEmpresa}})
     
     await createMovimientosStock_DALC({Orden: body.comprobante, IdProducto: parseInt(body.idProducto), Unidades: parseInt(body.unidades), Tipo: parseInt(body.tipoReingreso), IdEmpresa: parseInt(body.idEmpresa), Fecha: fechaDate, codprod: body.barcode, Usuario: body.usuario,  Lote: body.lote}) 
     .then(resultado =>{
@@ -343,6 +379,9 @@ export const actualizar_unidades_loteDetalle_DALC = async (body: any)=>{
     entradaAPosicion.Lote= body.lote
     entradaAPosicion.Embarque= body.embarque
     entradaAPosicion.UsuarioNombre= body.userName
+    const ocupacionLoteDetalle = calcularOcupacion(productoInfo, body.unidades)
+    entradaAPosicion.VolumenOcupadoCm3 = ocupacionLoteDetalle.VolumenOcupadoCm3
+    entradaAPosicion.PesoOcupadoKg = ocupacionLoteDetalle.PesoOcupadoKg
     
     const registroEntrada=getRepository(PosicionProducto).create(entradaAPosicion)
     const result=await getRepository(PosicionProducto).save(registroEntrada)
@@ -486,7 +525,8 @@ export const putLote_ByBarcodeAndEmpresa_DALC = async (barcode: string, idEmpres
                     // const noEstaIngresado = await getRepository(LoteDetalle).findOne({where: {Lote: unResultado.Lote, IdEmpresa: idEmpresa, IdProducto: unResultado.IdProducto, Ingreso: false}})
 
                     if(unResultado.Ingreso == false){
-                        
+                        const productoInfo = await getRepository(Producto).findOne({where: {Id: unResultado.IdProducto, IdEmpresa: idEmpresa}})
+
                         const entradaAPosicion=new PosicionProducto()
                         entradaAPosicion.IdEmpresa=idEmpresa
                         entradaAPosicion.IdPosicion=unResultado.IdPosicion
@@ -497,6 +537,9 @@ export const putLote_ByBarcodeAndEmpresa_DALC = async (barcode: string, idEmpres
                         entradaAPosicion.Lote=unBarcode
                         entradaAPosicion.Embarque=unResultado.Embarque
                         entradaAPosicion.UsuarioNombre=userName
+                        const ocupacionPutLote = calcularOcupacion(productoInfo, unResultado.Unidades)
+                        entradaAPosicion.VolumenOcupadoCm3 = ocupacionPutLote.VolumenOcupadoCm3
+                        entradaAPosicion.PesoOcupadoKg = ocupacionPutLote.PesoOcupadoKg
                         
                         const registroEntrada=getRepository(PosicionProducto).create(entradaAPosicion)
                         const result=await getRepository(PosicionProducto).save(registroEntrada)
@@ -546,8 +589,8 @@ export const putLote_ByBarcodeAndEmpresa_DALC = async (barcode: string, idEmpres
             
             if(resultLoteDetalle){
                 for (const unResultado of resultLoteDetalle){
-                
-                    
+
+
                     const entradaAPosicion=new PosicionProducto()
                     //entradaAPosicion.IdEmpresa=producto.IdEmpresa
                     entradaAPosicion.IdEmpresa=idEmpresa
@@ -559,6 +602,10 @@ export const putLote_ByBarcodeAndEmpresa_DALC = async (barcode: string, idEmpres
                     entradaAPosicion.Lote=unResultado.lote
                     entradaAPosicion.Embarque=unResultado.embarque
                     entradaAPosicion.UsuarioNombre=userName
+                    const productoInfo = await getRepository(Producto).findOne({where: {Id: unResultado.idProducto, IdEmpresa: idEmpresa}})
+                    const ocupacionPutLote2 = calcularOcupacion(productoInfo, unResultado.unidades)
+                    entradaAPosicion.VolumenOcupadoCm3 = ocupacionPutLote2.VolumenOcupadoCm3
+                    entradaAPosicion.PesoOcupadoKg = ocupacionPutLote2.PesoOcupadoKg
 
                     const registroEntrada=getRepository(PosicionProducto).create(entradaAPosicion)
                     const result=await getRepository(PosicionProducto).save(registroEntrada)
@@ -584,6 +631,7 @@ export const producto_getBySKUAndEmpresa_DALC = async (sku: string, idEmpresa: n
 }
 
 export const producto_moverDePosicion_DALC =  async (idProducto: number, idEmpresa: number, idPosicionOrigen: number, idPosicionDestino: number, cantidad: number,lote: string, embarque: string, usuario: string) => {
+    const productoInfo = await getRepository(Producto).findOne({where: {Id: idProducto, IdEmpresa: idEmpresa}})
 
     const salidaDePosicion=new PosicionProducto()
     salidaDePosicion.IdEmpresa=idEmpresa
@@ -595,6 +643,9 @@ export const producto_moverDePosicion_DALC =  async (idProducto: number, idEmpre
     salidaDePosicion.Lote = lote
     salidaDePosicion.Embarque = embarque
     salidaDePosicion.UsuarioNombre = usuario
+    const ocupacionMoverSalida = calcularOcupacion(productoInfo, cantidad)
+    salidaDePosicion.VolumenOcupadoCm3 = ocupacionMoverSalida.VolumenOcupadoCm3
+    salidaDePosicion.PesoOcupadoKg = ocupacionMoverSalida.PesoOcupadoKg
     
 
     const registroSalida=getRepository(PosicionProducto).create(salidaDePosicion)
@@ -610,6 +661,9 @@ export const producto_moverDePosicion_DALC =  async (idProducto: number, idEmpre
         entradaAPosicion.Lote = lote
         entradaAPosicion.Embarque = embarque
         entradaAPosicion.UsuarioNombre=usuario
+        const ocupacionMoverEntrada = calcularOcupacion(productoInfo, cantidad)
+        entradaAPosicion.VolumenOcupadoCm3 = ocupacionMoverEntrada.VolumenOcupadoCm3
+        entradaAPosicion.PesoOcupadoKg = ocupacionMoverEntrada.PesoOcupadoKg
 
         const registroEntrada=getRepository(PosicionProducto).create(entradaAPosicion)
         result=await getRepository(PosicionProducto).save(registroEntrada)
@@ -1134,6 +1188,7 @@ export const update_productosPosicionByLoteAndIdPosicion = async(boxNumber: stri
                     posicionesNuevas.push({lote: cadaLote.Lote,unidades: "", IdProducto: cadaLote.IdProducto, status:"ERROR",posicion: " ",mensaje: "No hay stock posicionado"})
                 }else{
                     // Ahora desposicionamos ese stock para volver a posicionar en la posicion nueva
+                    const productoInfo = await getRepository(Producto).findOne({where: {Id: cadaLote.IdProducto, IdEmpresa: cadaLote.IdEmpresa}})
                     const quitarPosicion=new PosicionProducto()
                     quitarPosicion.IdEmpresa=cadaLote.IdEmpresa
                     quitarPosicion.IdPosicion=cadaLote.IdPosicion
@@ -1144,6 +1199,9 @@ export const update_productosPosicionByLoteAndIdPosicion = async(boxNumber: stri
                     quitarPosicion.Lote= cadaLote.Lote
                     quitarPosicion.Embarque= cadaLote.Embarque
                     quitarPosicion.UsuarioNombre= userName
+                    const ocupacionQuitar = calcularOcupacion(productoInfo, parseInt(total))
+                    quitarPosicion.VolumenOcupadoCm3 = ocupacionQuitar.VolumenOcupadoCm3
+                    quitarPosicion.PesoOcupadoKg = ocupacionQuitar.PesoOcupadoKg
 
                     const registroQuitarPosicion=getRepository(PosicionProducto).create(quitarPosicion)
                     await getRepository(PosicionProducto).save(registroQuitarPosicion)
@@ -1159,6 +1217,9 @@ export const update_productosPosicionByLoteAndIdPosicion = async(boxNumber: stri
                     entradaAPosicion.Lote= cadaLote.Lote
                     entradaAPosicion.Embarque= cadaLote.Embarque
                     entradaAPosicion.UsuarioNombre= userName
+                    const ocupacionEntrada = calcularOcupacion(productoInfo, parseInt(total))
+                    entradaAPosicion.VolumenOcupadoCm3 = ocupacionEntrada.VolumenOcupadoCm3
+                    entradaAPosicion.PesoOcupadoKg = ocupacionEntrada.PesoOcupadoKg
 
                     const registroEntrada=getRepository(PosicionProducto).create(entradaAPosicion)
                     try{
