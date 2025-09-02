@@ -47,7 +47,7 @@ router.get(prefixAPI+"/posiciones/getDetallePosicionByIdYEmpresa/:idProducto/:id
 router.get(prefixAPI + "/posiciones/getAllByEmpresaConDetalle/:idEmpresa", getPosicionesConDetalleByEmpresa)
 router.get(prefixAPI + "/posiciones/getAllByEmpresaConProductos/:idEmpresa", getAllByEmpresaConProductos);
 
-router.post(prefixAPI+"/posiciones/newOne/:nombre", newPosicion)
+router.post(prefixAPI+"/posiciones/newOne", newPosicion)
 
 router.put(prefixAPI+"/posiciones/:id", setPosicion)
 
