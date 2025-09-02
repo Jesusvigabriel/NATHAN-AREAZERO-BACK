@@ -43,6 +43,8 @@ import emailProcesoConfigRoutes from './routes/emailProcesoConfig.routes';
 import reportesRoutes from './routes/reportes.routes';
 import zonasRoutes from './routes/zonas.routes';
 import dashboardRoutes from './routes/dashboard.routes';
+import palletTiposRoutes from './routes/palletTipos.routes';
+import palletsRoutes from './routes/pallets.routes';
 import { monitorService } from './services/monitor.service';
 
 import tiendaNubeRoutes from "./api/tiendanube/routes/tiendanube.routes";
@@ -78,6 +80,8 @@ app.use(guiasRendicionesRoutes)
 app.use(posicionesRoutes)
 app.use(productosRoutes)
 app.use(categoriasRoutes)
+app.use(palletTiposRoutes)
+app.use(palletsRoutes)
 app.use(posicionesProductosRoutes)
 app.use(ordenesRoutes)
 app.use(chofereRoutes)
