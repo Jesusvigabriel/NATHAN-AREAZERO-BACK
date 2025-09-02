@@ -5,8 +5,20 @@ import {PosicionProducto} from "../entities/PosicionProducto"
 import {HistoricoPosiciones} from "../entities/HistoricoPosiciones"
 import { producto_getPosiciones_byIdProducto_DALC, producto_moverDePosicion_DALC } from "./productos.dalc"
 
-export const posicion_add = async (nombre: string) => {
-    const resultToSave = getRepository(Posicion).create({Nombre: nombre})
+export const posicion_add = async (
+    nombre: string,
+    capacidadPeso?: number,
+    capacidadVolumen?: number,
+    factorDesperdicio?: number,
+    categoriaPermitidaId?: number
+  ) => {
+    const resultToSave = getRepository(Posicion).create({
+        Nombre: nombre,
+        CapacidadPesoKg: capacidadPeso,
+        CapacidadVolumenCm3: capacidadVolumen,
+        FactorDesperdicio: factorDesperdicio,
+        CategoriaPermitidaId: categoriaPermitidaId
+    })
     try {
         const result = await getRepository(Posicion).save(resultToSave)
         return {status: true, detalle: result}
@@ -18,7 +30,7 @@ export const posicion_add = async (nombre: string) => {
     }
   }
 
-export const posicion_modify = async (id: number, body: object) => {
+export const posicion_modify = async (id: number, body: Partial<Posicion>) => {
     const posicionActual=await getRepository(Posicion).findOne(id)
     if (posicionActual!=null) {
         getRepository(Posicion).merge(posicionActual, body)

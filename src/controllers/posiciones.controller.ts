@@ -1,4 +1,5 @@
 import {Request, Response} from "express"
+import { getConnection } from "typeorm"
 import {
     posiciones_getAll_DALC,
     posicion_getByNombre_DALC,
@@ -36,20 +37,58 @@ export const getPosicionesConPosicionadoNegativo = async (req: Request, res: Res
 }
 
 export const setPosicion = async (req: Request, res: Response): Promise<Response> => {
-    const result = await posicion_modify(parseInt(req.params.id), req.body)    
+    const { capacidadPeso, capacidadVolumen, factorDesperdicio, categoriaPermitidaId } = req.body
+    const api = require("lsi-util-node/API")
+
+    if ([capacidadPeso, capacidadVolumen, factorDesperdicio].some((v: number) => v !== undefined && v < 0)) {
+        return res.status(400).json(api.getFormatedResponse("", "Los valores no pueden ser negativos"))
+    }
+
+    if (categoriaPermitidaId !== undefined) {
+        const categoria = await getConnection().query("SELECT Id FROM categorias WHERE Id = ?", [categoriaPermitidaId])
+        if (categoria.length === 0) {
+            return res.status(400).json(api.getFormatedResponse("", "Categoría inexistente"))
+        }
+    }
+
+    const body: any = { ...req.body }
+    if (capacidadPeso !== undefined) { body.CapacidadPesoKg = capacidadPeso; delete body.capacidadPeso }
+    if (capacidadVolumen !== undefined) { body.CapacidadVolumenCm3 = capacidadVolumen; delete body.capacidadVolumen }
+    if (factorDesperdicio !== undefined) { body.FactorDesperdicio = factorDesperdicio; delete body.factorDesperdicio }
+    if (categoriaPermitidaId !== undefined) { body.CategoriaPermitidaId = categoriaPermitidaId; delete body.categoriaPermitidaId }
+
+    const result = await posicion_modify(parseInt(req.params.id), body)
     if (result!=null) {
-        return res.json(require("lsi-util-node/API").getFormatedResponse(result))
+        return res.json(api.getFormatedResponse(result))
     } else {
-        return res.status(404).json(require("lsi-util-node/API").getFormatedResponse("", "Error interno"))
+        return res.status(404).json(api.getFormatedResponse("", "Error interno"))
     }
 }
 
 export const newPosicion = async (req: Request, res: Response): Promise<Response> => {
-    const result = await posicion_add(req.params.nombre)
+    const { nombre, capacidadPeso, capacidadVolumen, factorDesperdicio, categoriaPermitidaId } = req.body
+    const api = require("lsi-util-node/API")
+
+    if (!nombre) {
+        return res.status(400).json(api.getFormatedResponse("", "Nombre requerido"))
+    }
+
+    if ([capacidadPeso, capacidadVolumen, factorDesperdicio].some((v: number) => v !== undefined && v < 0)) {
+        return res.status(400).json(api.getFormatedResponse("", "Los valores no pueden ser negativos"))
+    }
+
+    if (categoriaPermitidaId !== undefined) {
+        const categoria = await getConnection().query("SELECT Id FROM categorias WHERE Id = ?", [categoriaPermitidaId])
+        if (categoria.length === 0) {
+            return res.status(400).json(api.getFormatedResponse("", "Categoría inexistente"))
+        }
+    }
+
+    const result = await posicion_add(nombre, capacidadPeso, capacidadVolumen, factorDesperdicio, categoriaPermitidaId)
     if (result.status) {
-        return res.json(require("lsi-util-node/API").getFormatedResponse(result.detalle))
+        return res.json(api.getFormatedResponse(result.detalle))
     } else {
-        return res.status(404).json(require("lsi-util-node/API").getFormatedResponse("", result.detalle))
+        return res.status(404).json(api.getFormatedResponse("", result.detalle))
     }
 }
 
