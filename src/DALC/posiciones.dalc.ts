@@ -474,6 +474,8 @@ export const posiciones_getHeatmap_DALC = async (
         .createQueryBuilder('pm')
         .select('pos.descripcion', 'nombre')
         .addSelect('SUM(pm.unidades)', 'valor')
+        .addSelect('SUM(pm.volumenMovidoCm3)', 'volumen')
+        .addSelect('SUM(pm.pesoMovidoKg)', 'peso')
         .innerJoin(Posicion, 'pos', 'pos.id = pm.posicionId')
         .where('pm.empresaId = :idEmpresa', { idEmpresa })
         .andWhere('pm.fecha >= :start AND pm.fecha < :end', { start, end })
@@ -490,6 +492,12 @@ export const posiciones_getHeatmap_DALC = async (
         const partes = (r.nombre || '').split('-')
         const x = parseInt(partes[1], 10)
         const y = parseInt(partes[2], 10)
-        return { x, y, valor: Number(r.valor) }
+        return {
+            x,
+            y,
+            valor: Number(r.valor),
+            volumen: Number(r.volumen),
+            peso: Number(r.peso),
+        }
     })
 }

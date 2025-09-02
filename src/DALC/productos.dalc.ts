@@ -51,13 +51,17 @@ const registrarPosicionMetrica = async (
     idEmpresa: number,
     idPosicion: number,
     unidades: number,
-    accion: string
+    accion: string,
+    volumenMovido: number,
+    pesoMovido: number
 ) => {
     const metrica = getRepository(PosicionMetrica).create({
         IdEmpresa: idEmpresa,
         IdPosicion: idPosicion,
         Unidades: unidades,
         Accion: accion,
+        VolumenMovidoCm3: volumenMovido,
+        PesoMovidoKg: pesoMovido,
         Fecha: new Date()
     })
     await getRepository(PosicionMetrica).save(metrica)
@@ -136,7 +140,7 @@ export const producto_posicionar_DALC = async (
     const registroEntrada=getRepository(PosicionProducto).create(entradaAPosicion)
     const result=await getRepository(PosicionProducto).save(registroEntrada)
     if (result!=null) {
-        await registrarPosicionMetrica(idEmpresa, posicion.Id, unidadesAPosicionar, 'IN')
+        await registrarPosicionMetrica(idEmpresa, posicion.Id, unidadesAPosicionar, 'IN', ocupacion1.VolumenOcupadoCm3, ocupacion1.PesoOcupadoKg)
         return {status: "OK"}
     } else {
         return {status: "ERROR", error: result}
@@ -223,7 +227,7 @@ export const reposicionar_producto_excel_DALC = async (
 
             const registroEntrada=getRepository(PosicionProducto).create(entradaAPosicion)
             result=await getRepository(PosicionProducto).save(registroEntrada)
-            await registrarPosicionMetrica(producto.IdEmpresa, posicion.Id, unidadesAPosicionar, 'IN')
+            await registrarPosicionMetrica(producto.IdEmpresa, posicion.Id, unidadesAPosicionar, 'IN', ocupacion2.VolumenOcupadoCm3, ocupacion2.PesoOcupadoKg)
             //Puede que tenga una posicion existe en 1, pero sea distinta a la que vino entonces si eso pasa guardo en el historico.
             if(pos.IdPosicion!=posicion.Id){
                 const saveHistorico = await producto_SaveHistoricoDePosicion_DALC(producto.Id, producto.IdEmpresa, pos.IdPosicion, 1, loteNulo, usuario)
@@ -258,7 +262,7 @@ export const reposicionar_producto_excel_DALC = async (
 
         const registroEntrada=getRepository(PosicionProducto).create(entradaAPosicion)
         result=await getRepository(PosicionProducto).save(registroEntrada)
-        await registrarPosicionMetrica(producto.IdEmpresa, posicion.Id, unidadesAPosicionar, 'IN')
+        await registrarPosicionMetrica(producto.IdEmpresa, posicion.Id, unidadesAPosicionar, 'IN', ocupacion3.VolumenOcupadoCm3, ocupacion3.PesoOcupadoKg)
     }
 
   
@@ -330,7 +334,7 @@ export const reposicionar_partida_excel_DALC = async (partida: Partida, posicion
 
             const registroEntrada=getRepository(PosicionProducto).create(entradaAPosicion)
             result=await getRepository(PosicionProducto).save(registroEntrada)
-            await registrarPosicionMetrica(partida.IdEmpresa, posicion.Id, unidadesAPosicionar, 'IN')
+            await registrarPosicionMetrica(partida.IdEmpresa, posicion.Id, unidadesAPosicionar, 'IN', ocupacionPartida.VolumenOcupadoCm3, ocupacionPartida.PesoOcupadoKg)
             //Puede que tenga una posicion existe en 1, pero sea distinta a la que vino entonces si eso pasa guardo en el historico.
             if(idPosicion!=posicion.Id){
                 const saveHistorico = await producto_SaveHistoricoDePosicion_DALC(partida.Id, partida.IdEmpresa, idPosicion, 1, loteNulo, usuario)
@@ -365,7 +369,7 @@ export const reposicionar_partida_excel_DALC = async (partida: Partida, posicion
 
         const registroEntrada=getRepository(PosicionProducto).create(entradaAPosicion)
         result=await getRepository(PosicionProducto).save(registroEntrada)
-        await registrarPosicionMetrica(partida.IdEmpresa, posicion.Id, unidadesAPosicionar, 'IN')
+        await registrarPosicionMetrica(partida.IdEmpresa, posicion.Id, unidadesAPosicionar, 'IN', ocupacionPartida2.VolumenOcupadoCm3, ocupacionPartida2.PesoOcupadoKg)
     }
 
   
@@ -412,7 +416,7 @@ export const producto_desposicionar_DALC = async (producto: Producto, posicion: 
         }
 
         if (result!=null) {
-            await registrarPosicionMetrica(producto.IdEmpresa, posicion.Id, unidadesADesposicionar, 'OUT')
+            await registrarPosicionMetrica(producto.IdEmpresa, posicion.Id, unidadesADesposicionar, 'OUT', ocupacionSalida.VolumenOcupadoCm3, ocupacionSalida.PesoOcupadoKg)
             return {status: "OK"}
         } else {
             return {status: "ERROR", error: result}
@@ -448,7 +452,7 @@ export const producto_desposicionar_paqueteria_DALC = async (producto: number, p
     const result=await getRepository(PosicionProducto).save(registroSalida)
 
     if (result!=null) {
-        await registrarPosicionMetrica(idEmpresa, posicion, unidadesADesposicionar, 'OUT')
+        await registrarPosicionMetrica(idEmpresa, posicion, unidadesADesposicionar, 'OUT', ocupacionPaqueteria.VolumenOcupadoCm3, ocupacionPaqueteria.PesoOcupadoKg)
         return {status: "OK"}
     } else {
         return {status: "ERROR", error: result}
@@ -486,7 +490,7 @@ export const producto_desposicionar_Lote_DALC = async (posicion: number, unidade
     const result=await getRepository(PosicionProducto).save(registroSalida)
 
     if (result!=null) {
-        await registrarPosicionMetrica(idEmpresa, posicion, unidadesADesposicionar, 'OUT')
+        await registrarPosicionMetrica(idEmpresa, posicion, unidadesADesposicionar, 'OUT', ocupacionLote.VolumenOcupadoCm3, ocupacionLote.PesoOcupadoKg)
         return {status: "OK"}
     } else {
         return {status: "ERROR", error: result}
@@ -885,7 +889,7 @@ export const producto_moverDePosicion_DALC =  async (idProducto: number, idEmpre
     const registroSalida=getRepository(PosicionProducto).create(salidaDePosicion)
     let result=await getRepository(PosicionProducto).save(registroSalida)
     if (result!=null) {
-        await registrarPosicionMetrica(idEmpresa, idPosicionOrigen, cantidad, 'OUT')
+        await registrarPosicionMetrica(idEmpresa, idPosicionOrigen, cantidad, 'OUT', ocupacionMoverSalida.VolumenOcupadoCm3, ocupacionMoverSalida.PesoOcupadoKg)
         const entradaAPosicion=new PosicionProducto()
         entradaAPosicion.IdEmpresa=idEmpresa
         entradaAPosicion.IdPosicion=idPosicionDestino
@@ -903,7 +907,7 @@ export const producto_moverDePosicion_DALC =  async (idProducto: number, idEmpre
         result=await getRepository(PosicionProducto).save(registroEntrada)
 
         if (result!=null) {
-            await registrarPosicionMetrica(idEmpresa, idPosicionDestino, cantidad, 'IN')
+            await registrarPosicionMetrica(idEmpresa, idPosicionDestino, cantidad, 'IN', ocupacionMoverEntrada.VolumenOcupadoCm3, ocupacionMoverEntrada.PesoOcupadoKg)
             if(lote!=""){
                 const result=await getRepository(LoteDetalle).update({Lote: lote},{IdPosicion: idPosicionDestino})
             }
